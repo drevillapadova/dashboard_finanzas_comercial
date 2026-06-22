@@ -1,0 +1,7 @@
+selenium
+pandas
+gspread
+google-auth
+requests
+openpyxl
+xlsxwriter

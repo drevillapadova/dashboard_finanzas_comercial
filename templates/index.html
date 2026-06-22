@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Dashboard Comercial & Finanzas — Padova SAC</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f5f5;
+    --white: #ffffff;
+    --gray-100: #f9f9f9;
+    --gray-200: #e5e5e5;
+    --gray-400: #aaaaaa;
+    --gray-600: #666666;
+    --gray-800: #222222;
+    --accent: #1a1a2e;
+    --accent2: #16213e;
+    --blue: #3b82f6;
+    --green: #10b981;
+    --orange: #f97316;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --purple: #8b5cf6;
+    --radius: 8px;
+    --shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); font-family: 'Segoe UI', Arial, sans-serif; color: var(--gray-800); font-size: 13px; }
+
+  /* HEADER */
+  .header { background: var(--accent); color: #fff; padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+  .header-meta { font-size: 11px; color: #aaa; }
+
+  /* CONTROLES */
+  .controls { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 10px 28px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .controls label { font-size: 11px; color: var(--gray-600); margin-right: 4px; }
+  .controls select, .controls input[type=date] {
+    border: 1px solid var(--gray-200); border-radius: 4px; padding: 5px 10px;
+    font-size: 12px; background: var(--gray-100); cursor: pointer;
+  }
+  .btn-moneda { display: flex; gap: 4px; }
+  .btn-moneda button {
+    padding: 5px 12px; border: 1px solid var(--gray-200); border-radius: 4px;
+    background: var(--white); font-size: 11px; cursor: pointer; font-weight: 500;
+  }
+  .btn-moneda button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-refresh {
+    margin-left: auto; padding: 5px 14px; border: none; border-radius: 4px;
+    background: var(--blue); color: #fff; font-size: 11px; cursor: pointer; font-weight: 600;
+  }
+  .btn-refresh:hover { opacity: 0.85; }
+
+  /* TABS DE SECCIÓN */
+  .section-tabs { padding: 16px 28px 0; display: flex; gap: 4px; }
+  .tab-btn {
+    padding: 8px 18px; border: 1px solid var(--gray-200); border-bottom: none;
+    border-radius: 6px 6px 0 0; background: var(--gray-100); font-size: 12px;
+    cursor: pointer; font-weight: 500; color: var(--gray-600);
+  }
+  .tab-btn.active { background: var(--white); color: var(--accent); font-weight: 700; border-color: var(--gray-200); }
+
+  /* MAIN */
+  .main { padding: 0 28px 28px; }
+  .section { display: none; background: var(--white); border: 1px solid var(--gray-200); border-radius: 0 var(--radius) var(--radius) var(--radius); padding: 20px; }
+  .section.active { display: block; }
+
+  /* KPI CARDS */
+  .kpi-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .kpi-card {
+    flex: 1; min-width: 140px; background: var(--gray-100); border-radius: var(--radius);
+    padding: 14px 16px; border-left: 3px solid var(--blue);
+  }
+  .kpi-card .kpi-label { font-size: 10px; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .kpi-card .kpi-val { font-size: 22px; font-weight: 700; color: var(--gray-800); }
+  .kpi-card .kpi-sub { font-size: 10px; color: var(--gray-400); margin-top: 2px; }
+  .kpi-card.green { border-left-color: var(--green); }
+  .kpi-card.orange { border-left-color: var(--orange); }
+  .kpi-card.purple { border-left-color: var(--purple); }
+
+  /* CHARTS GRID */
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .chart-card { background: var(--gray-100); border-radius: var(--radius); padding: 14px; }
+  .chart-card h3 { font-size: 11px; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 10px; }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th { background: var(--gray-100); padding: 8px 10px; text-align: left; font-size: 10px; text-transform: uppercase; color: var(--gray-600); border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; }
+  tbody td { padding: 7px 10px; border-bottom: 1px solid var(--gray-200); }
+  tbody tr:hover { background: var(--gray-100); }
+
+  /* PLACEHOLDER */
+  .placeholder { text-align: center; padding: 60px 20px; color: var(--gray-400); }
+  .placeholder .icon { font-size: 40px; margin-bottom: 12px; }
+  .placeholder p { font-size: 13px; }
+
+  /* LOADING */
+  #loading { position: fixed; inset: 0; background: rgba(255,255,255,0.85); display: flex; align-items: center; justify-content: center; z-index: 999; font-size: 14px; color: var(--gray-600); }
+
+  @media (max-width: 768px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .controls { gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">Cargando datos...</div>
+
+<div class="header">
+  <h1>Dashboard Comercial & Finanzas — Padova SAC</h1>
+  <span class="header-meta" id="ultima-actualizacion">—</span>
+</div>
+
+<!-- CONTROLES GLOBALES -->
+<div class="controls">
+  <div>
+    <label>Proyecto</label>
+    <select id="filtro-proyecto">
+      <option value="">Todos</option>
+    </select>
+  </div>
+  <div>
+    <label>Desde</label>
+    <input type="date" id="filtro-desde"/>
+  </div>
+  <div>
+    <label>Hasta</label>
+    <input type="date" id="filtro-hasta"/>
+  </div>
+  <div>
+    <label>Moneda</label>
+    <div class="btn-moneda">
+      <button class="active" data-moneda="original" onclick="setMoneda(this)">Original</button>
+      <button data-moneda="soles" onclick="setMoneda(this)">S/ Soles</button>
+      <button data-moneda="dolares" onclick="setMoneda(this)">$ USD</button>
+    </div>
+  </div>
+  <button class="btn-refresh" onclick="refresh()">↻ Actualizar</button>
+</div>
+
+<!-- TABS DE SECCIÓN -->
+<div class="section-tabs">
+  <button class="tab-btn active" onclick="showSection('ventas', this)">📊 Ventas</button>
+  <button class="tab-btn" onclick="showSection('separaciones', this)">🤝 Separaciones</button>
+  <button class="tab-btn" onclick="showSection('ing-deposito', this)">💰 Ingreso por Depósito</button>
+  <button class="tab-btn" onclick="showSection('flujo-caja', this)">📈 Flujo de Caja</button>
+</div>
+
+<div class="main">
+
+  <!-- VENTAS -->
+  <div id="section-ventas" class="section active">
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Unidades vendidas</div><div class="kpi-val" id="kpi-v-unidades">—</div><div class="kpi-sub">en el periodo</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Monto total</div><div class="kpi-val" id="kpi-v-monto">—</div><div class="kpi-sub" id="kpi-v-moneda-label">moneda seleccionada</div></div>
+      <div class="kpi-card orange"><div class="kpi-label">Ticket promedio</div><div class="kpi-val" id="kpi-v-ticket">—</div><div class="kpi-sub">por unidad</div></div>
+      <div class="kpi-card purple"><div class="kpi-label">Proyectos activos</div><div class="kpi-val" id="kpi-v-proyectos">—</div><div class="kpi-sub">con ventas</div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Ventas por proyecto</h3>
+        <div class="chart-wrap"><canvas id="chart-ventas-proyecto"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Evolución mensual de ventas</h3>
+        <div class="chart-wrap"><canvas id="chart-ventas-mes"></canvas></div>
+      </div>
+    </div>
+    <div class="table-wrap" id="tabla-ventas-wrap"></div>
+  </div>
+
+  <!-- SEPARACIONES -->
+  <div id="section-separaciones" class="section">
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Separaciones activas</div><div class="kpi-val" id="kpi-s-total">—</div><div class="kpi-sub">en stock</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Monto separado</div><div class="kpi-val" id="kpi-s-monto">—</div><div class="kpi-sub" id="kpi-s-moneda-label">moneda seleccionada</div></div>
+      <div class="kpi-card orange"><div class="kpi-label">Disponibles</div><div class="kpi-val" id="kpi-s-disponibles">—</div><div class="kpi-sub">unidades sin separar</div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Estado de stock por proyecto</h3>
+        <div class="chart-wrap"><canvas id="chart-stock-estado"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Distribución por tipo de inmueble</h3>
+        <div class="chart-wrap"><canvas id="chart-stock-tipo"></canvas></div>
+      </div>
+    </div>
+    <div class="table-wrap" id="tabla-stock-wrap"></div>
+  </div>
+
+  <!-- INGRESO POR DEPÓSITO -->
+  <div id="section-ing-deposito" class="section">
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Depósitos registrados</div><div class="kpi-val" id="kpi-id-total">—</div><div class="kpi-sub">en el periodo</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Monto ingresado</div><div class="kpi-val" id="kpi-id-monto">—</div><div class="kpi-sub" id="kpi-id-moneda-label">moneda seleccionada</div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Ingresos por proyecto</h3>
+        <div class="chart-wrap"><canvas id="chart-id-proyecto"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Evolución mensual de ingresos</h3>
+        <div class="chart-wrap"><canvas id="chart-id-mes"></canvas></div>
+      </div>
+    </div>
+    <div class="table-wrap" id="tabla-id-wrap"></div>
+  </div>
+
+  <!-- FLUJO DE CAJA -->
+  <div id="section-flujo-caja" class="section">
+    <div id="flujo-content">
+      <!-- Se llena dinámicamente; muestra placeholder si no hay datos -->
+      <div class="placeholder">
+        <div class="icon">📋</div>
+        <p>Los datos de flujo de caja se mostrarán aquí una vez<br>que el reporte esté disponible en Evolta.</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ============================================================
+// ESTADO GLOBAL
+// ============================================================
+let DATA = { ventas: [], stock: [], ing_deposito: [], flujo_caja: [] };
+let MONEDA = 'original'; // 'original' | 'soles' | 'dolares'
+
+const COLORES_PROYECTO = {
+  'HELIO - SANTA BEATRIZ': '#3b82f6',
+  'LITORAL 900':           '#10b981',
+  'LOMAS DE CARABAYLLO':   '#ef4444',
+  'SUNNY':                 '#f59e0b',
+  'DOMINGO ORUE':          '#8b5cf6',
+};
+const COLOR_DEFAULT = '#94a3b8';
+
+const CHARTS = {};
+
+// ============================================================
+// FETCH
+// ============================================================
+async function loadData() {
+  document.getElementById('loading').style.display = 'flex';
+  try {
+    const r = await fetch('/api/data');
+    const json = await r.json();
+    DATA.ventas       = csvToObjects(json.ventas       || []);
+    DATA.stock        = csvToObjects(json.stock        || []);
+    DATA.ing_deposito = csvToObjects(json.ing_deposito || []);
+    DATA.flujo_caja   = csvToObjects(json.flujo_caja   || []);
+    document.getElementById('ultima-actualizacion').textContent =
+      'Actualizado: ' + (json.ultima_actualizacion || '—');
+    poblarFiltroProyecto();
+    renderAll();
+  } catch(e) {
+    console.error('Error cargando datos:', e);
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+  }
+}
+
+async function refresh() {
+  await fetch('/api/refresh', { method: 'POST' });
+  await loadData();
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function csvToObjects(rows) {
+  if (!rows || rows.length < 2) return [];
+  const headers = rows[0];
+  return rows.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = row[i] ?? '');
+    return obj;
+  });
+}
+
+function fmt(val, moneda) {
+  const n = parseFloat(val) || 0;
+  if (moneda === 'dolares') return '$ ' + n.toLocaleString('es-PE', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  return 'S/ ' + n.toLocaleString('es-PE', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+}
+
+function getMonedaLabel() {
+  return MONEDA === 'dolares' ? 'USD' : MONEDA === 'soles' ? 'Soles SUNAT' : 'Moneda original';
+}
+
+// Devuelve el campo de precio según moneda seleccionada
+function campoPrecio(row, prefijo = 'Precio') {
+  if (MONEDA === 'soles')   return parseFloat(row[prefijo + 'Soles'])   || 0;
+  if (MONEDA === 'dolares') return parseFloat(row[prefijo + 'Dolares']) || 0;
+  return parseFloat(row[prefijo + 'Original'] || row['PrecioVenta'] || row['Monto'] || 0);
+}
+
+// Filtro de fechas
+function filtrarPorFecha(arr, campoFecha) {
+  const desde = document.getElementById('filtro-desde').value;
+  const hasta = document.getElementById('filtro-hasta').value;
+  if (!desde && !hasta) return arr;
+  return arr.filter(r => {
+    const f = r[campoFecha];
+    if (!f) return true;
+    const fStr = f.substring(0, 10);
+    if (desde && fStr < desde) return false;
+    if (hasta && fStr > hasta) return false;
+    return true;
+  });
+}
+
+function filtrarPorProyecto(arr) {
+  const p = document.getElementById('filtro-proyecto').value;
+  if (!p) return arr;
+  return arr.filter(r => (r['Proyecto'] || '').toUpperCase() === p.toUpperCase());
+}
+
+function aplicarFiltros(arr, campoFecha) {
+  return filtrarPorProyecto(filtrarPorFecha(arr, campoFecha));
+}
+
+function agruparPorKey(arr, key, valFn) {
+  const map = {};
+  arr.forEach(r => {
+    const k = r[key] || 'Sin dato';
+    map[k] = (map[k] || 0) + valFn(r);
+  });
+  return map;
+}
+
+function agruparPorMes(arr, campoFecha, valFn) {
+  const map = {};
+  arr.forEach(r => {
+    const f = r[campoFecha] || '';
+    const mes = f.substring(0, 7); // YYYY-MM
+    if (!mes) return;
+    map[mes] = (map[mes] || 0) + valFn(r);
+  });
+  return Object.fromEntries(Object.entries(map).sort());
+}
+
+function coloresProyectos(labels) {
+  return labels.map(l => COLORES_PROYECTO[l.toUpperCase()] || COLOR_DEFAULT);
+}
+
+function upsertChart(id, config) {
+  if (CHARTS[id]) { CHARTS[id].destroy(); }
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  CHARTS[id] = new Chart(ctx, config);
+}
+
+function tablaHTML(data, cols) {
+  if (!data.length) return '<p style="color:#aaa;padding:16px">Sin datos</p>';
+  const header = cols.map(c => `<th>${c}</th>`).join('');
+  const rows = data.slice(0, 200).map(r =>
+    '<tr>' + cols.map(c => `<td>${r[c] ?? ''}</td>`).join('') + '</tr>'
+  ).join('');
+  return `<table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ============================================================
+// FILTRO PROYECTO
+// ============================================================
+function poblarFiltroProyecto() {
+  const proyectos = new Set();
+  [...DATA.ventas, ...DATA.stock].forEach(r => {
+    if (r['Proyecto']) proyectos.add(r['Proyecto']);
+  });
+  const sel = document.getElementById('filtro-proyecto');
+  sel.innerHTML = '<option value="">Todos</option>';
+  [...proyectos].sort().forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    sel.appendChild(opt);
+  });
+}
+
+// ============================================================
+// RENDER VENTAS
+// ============================================================
+function renderVentas() {
+  const datos = aplicarFiltros(DATA.ventas, 'FechaVenta');
+
+  const unidades = datos.length;
+  const monto    = datos.reduce((s, r) => s + campoPrecio(r), 0);
+  const ticket   = unidades ? monto / unidades : 0;
+  const proyectos = new Set(datos.map(r => r['Proyecto'])).size;
+
+  document.getElementById('kpi-v-unidades').textContent = unidades.toLocaleString('es-PE');
+  document.getElementById('kpi-v-monto').textContent    = fmt(monto, MONEDA);
+  document.getElementById('kpi-v-ticket').textContent   = fmt(ticket, MONEDA);
+  document.getElementById('kpi-v-proyectos').textContent = proyectos;
+  document.getElementById('kpi-v-moneda-label').textContent = getMonedaLabel();
+
+  // Chart por proyecto
+  const porProyecto = agruparPorKey(datos, 'Proyecto', r => campoPrecio(r));
+  const labels1 = Object.keys(porProyecto);
+  upsertChart('chart-ventas-proyecto', {
+    type: 'bar',
+    data: { labels: labels1, datasets: [{ label: 'Monto', data: Object.values(porProyecto), backgroundColor: coloresProyectos(labels1) }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+
+  // Chart mensual
+  const porMes = agruparPorMes(datos, 'FechaVenta', r => campoPrecio(r));
+  upsertChart('chart-ventas-mes', {
+    type: 'line',
+    data: { labels: Object.keys(porMes), datasets: [{ label: 'Monto', data: Object.values(porMes), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+
+  // Tabla
+  const cols = ['FechaVenta','Proyecto','NroInmueble','TipoInmueble','NombresTitular','TipoMoneda','PrecioVenta','PrecioSoles','PrecioDolares','Vendedor','Estado'];
+  document.getElementById('tabla-ventas-wrap').innerHTML = tablaHTML(datos, cols.filter(c => datos[0] && c in datos[0]));
+}
+
+// ============================================================
+// RENDER SEPARACIONES (STOCK)
+// ============================================================
+function renderSeparaciones() {
+  const datos = aplicarFiltros(DATA.stock, 'FechaSepDefinitiva');
+  const seps  = datos.filter(r => (r['Estado'] || '').toLowerCase().includes('separac'));
+  const disp  = datos.filter(r => (r['Estado'] || '').toLowerCase().includes('disponib'));
+
+  document.getElementById('kpi-s-total').textContent      = seps.length.toLocaleString('es-PE');
+  document.getElementById('kpi-s-monto').textContent      = fmt(seps.reduce((s, r) => s + campoPrecio(r), 0), MONEDA);
+  document.getElementById('kpi-s-disponibles').textContent = disp.length.toLocaleString('es-PE');
+  document.getElementById('kpi-s-moneda-label').textContent = getMonedaLabel();
+
+  // Chart por estado
+  const estados = agruparPorKey(datos, 'Estado', () => 1);
+  const labels2 = Object.keys(estados);
+  upsertChart('chart-stock-estado', {
+    type: 'doughnut',
+    data: { labels: labels2, datasets: [{ data: Object.values(estados), backgroundColor: ['#3b82f6','#10b981','#f97316','#ef4444','#8b5cf6','#f59e0b'] }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  // Chart por tipo
+  const tipos = agruparPorKey(datos, 'TipoInmueble', () => 1);
+  const labels3 = Object.keys(tipos);
+  upsertChart('chart-stock-tipo', {
+    type: 'bar',
+    data: { labels: labels3, datasets: [{ label: 'Unidades', data: Object.values(tipos), backgroundColor: '#3b82f6' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+
+  const cols = ['Proyecto','TipoInmueble','NroInmuebleActual','Estado','Moneda','PrecioVenta','PrecioSoles','PrecioDolares','Vendedor'];
+  document.getElementById('tabla-stock-wrap').innerHTML = tablaHTML(datos, cols.filter(c => datos[0] && c in datos[0]));
+}
+
+// ============================================================
+// RENDER INGRESO DEPÓSITO
+// ============================================================
+function renderIngDeposito() {
+  const campoFecha = DATA.ing_deposito[0] ? Object.keys(DATA.ing_deposito[0]).find(k => k.toLowerCase().includes('fecha')) || '' : '';
+  const datos = aplicarFiltros(DATA.ing_deposito, campoFecha);
+
+  const total = datos.length;
+  const monto = datos.reduce((s, r) => s + campoPrecio(r, 'Precio'), 0);
+
+  document.getElementById('kpi-id-total').textContent = total.toLocaleString('es-PE');
+  document.getElementById('kpi-id-monto').textContent = fmt(monto, MONEDA);
+  document.getElementById('kpi-id-moneda-label').textContent = getMonedaLabel();
+
+  // Chart por proyecto
+  const porProyecto = agruparPorKey(datos, 'Proyecto', r => campoPrecio(r, 'Precio'));
+  const labels4 = Object.keys(porProyecto);
+  upsertChart('chart-id-proyecto', {
+    type: 'bar',
+    data: { labels: labels4, datasets: [{ label: 'Monto', data: Object.values(porProyecto), backgroundColor: coloresProyectos(labels4) }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+
+  // Chart mensual
+  const porMes = agruparPorMes(datos, campoFecha, r => campoPrecio(r, 'Precio'));
+  upsertChart('chart-id-mes', {
+    type: 'bar',
+    data: { labels: Object.keys(porMes), datasets: [{ label: 'Monto', data: Object.values(porMes), backgroundColor: '#10b981' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+
+  const cols = Object.keys(datos[0] || {}).slice(0, 10);
+  document.getElementById('tabla-id-wrap').innerHTML = tablaHTML(datos, cols);
+}
+
+// ============================================================
+// RENDER FLUJO DE CAJA
+// ============================================================
+function renderFlujoCaja() {
+  const datos = aplicarFiltros(DATA.flujo_caja, Object.keys(DATA.flujo_caja[0] || {}).find(k => k.toLowerCase().includes('fecha')) || '');
+
+  const container = document.getElementById('flujo-content');
+  if (!datos.length) {
+    container.innerHTML = `
+      <div class="placeholder">
+        <div class="icon">📋</div>
+        <p>Los datos de flujo de caja se mostrarán aquí una vez<br>que el reporte esté disponible en Evolta.</p>
+      </div>`;
+    return;
+  }
+
+  const campoMonto = Object.keys(datos[0]).find(k => ['monto','importe','cuota','pago'].some(x => k.toLowerCase().includes(x))) || '';
+  const total = datos.reduce((s, r) => s + (parseFloat(r[campoMonto]) || 0), 0);
+
+  container.innerHTML = `
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Registros</div><div class="kpi-val">${datos.length.toLocaleString('es-PE')}</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Total proyectado</div><div class="kpi-val">${fmt(total, MONEDA)}</div><div class="kpi-sub">${getMonedaLabel()}</div></div>
+    </div>
+    <div class="table-wrap">${tablaHTML(datos, Object.keys(datos[0]).slice(0, 10))}</div>`;
+}
+
+// ============================================================
+// RENDER ALL
+// ============================================================
+function renderAll() {
+  renderVentas();
+  renderSeparaciones();
+  renderIngDeposito();
+  renderFlujoCaja();
+}
+
+// ============================================================
+// UI HANDLERS
+// ============================================================
+function showSection(name, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('section-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+function setMoneda(btn) {
+  document.querySelectorAll('.btn-moneda button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  MONEDA = btn.dataset.moneda;
+  renderAll();
+}
+
+document.getElementById('filtro-proyecto').addEventListener('change', renderAll);
+document.getElementById('filtro-desde').addEventListener('change', renderAll);
+document.getElementById('filtro-hasta').addEventListener('change', renderAll);
+
+// Fechas por defecto: inicio de año actual a hoy
+const hoy = new Date();
+const ini = new Date(hoy.getFullYear(), 0, 1);
+document.getElementById('filtro-desde').value = ini.toISOString().slice(0, 10);
+document.getElementById('filtro-hasta').value = hoy.toISOString().slice(0, 10);
+
+loadData();
+</script>
+</body>
+</html>
