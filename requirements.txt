@@ -1,0 +1,8 @@
+flask
+gunicorn
+gspread
+google-auth
+pandas
+apscheduler
+pytz
+python-dotenv
