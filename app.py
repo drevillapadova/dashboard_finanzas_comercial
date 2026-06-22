@@ -1,42 +1,40 @@
-import os, json, base64, tempfile, threading
+import io, threading, requests
 from datetime import datetime
 from flask import Flask, jsonify, render_template
 from apscheduler.schedulers.background import BackgroundScheduler
+import pandas as pd
 import pytz
-
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
 
 app  = Flask(__name__)
 LIMA = pytz.timezone("America/Lima")
 
-SPREADSHEET_ID  = os.environ.get("GSHEETS_SPREADSHEET_ID", "")
-CREDENTIALS_B64 = os.environ.get("GSHEETS_CREDENTIALS_B64", "")
-
-TABS = ["VENTAS", "STOCK", "INGRESO_DEPOSITO", "FLUJO_CAJA"]
+SHEET_ID = "18uWdlUjIf1v9n4RSuEw3AK-LBseTtD78jNZtLTanF2U"
+TABS     = ["VENTAS", "STOCK", "INGRESO_DEPOSITO", "FLUJO_CAJA"]
 
 _cache = {t: [] for t in TABS}
 _cache["updated_at"] = None
 
 
-# ── Google Sheets client ──────────────────────────────────────
+# ── Lectura de Sheets ─────────────────────────────────────────
 
-def _gsheets_client():
-    import gspread
-    from google.oauth2.service_account import Credentials
-    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    if CREDENTIALS_B64:
-        creds_dict = json.loads(base64.b64decode(CREDENTIALS_B64).decode("utf-8"))
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
-        json.dump(creds_dict, tmp); tmp.flush()
-        creds_file = tmp.name
-    else:
-        creds_file = os.path.join(os.path.dirname(__file__), "evoltareportes-00ffe1b337be.json")
-    creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
-    return gspread.authorize(creds)
+def csv_url(tab_name):
+    from time import time
+    return (f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
+            f"/gviz/tq?tqx=out:csv&sheet={tab_name}&ts={int(time())}")
+
+
+def leer_tab(tab_name):
+    try:
+        resp = requests.get(csv_url(tab_name), timeout=30)
+        resp.raise_for_status()
+        resp.encoding = "utf-8"
+        df = pd.read_csv(io.StringIO(resp.text), low_memory=False)
+        rows = [df.columns.tolist()] + df.fillna("").astype(str).values.tolist()
+        print(f"   -> {tab_name}: {len(rows)-1:,} filas")
+        return rows
+    except Exception as e:
+        print(f"   !! Error leyendo {tab_name}: {e}")
+        return []
 
 
 # ── Cache ─────────────────────────────────────────────────────
@@ -44,18 +42,8 @@ def _gsheets_client():
 def actualizar_cache():
     ts = datetime.now(LIMA).strftime("%H:%M:%S")
     print(f"\n[{ts}] Actualizando cache desde Google Sheets...")
-    try:
-        client = _gsheets_client()
-        sh     = client.open_by_key(SPREADSHEET_ID)
-        for tab in TABS:
-            try:
-                rows = sh.worksheet(tab).get_all_values()
-                _cache[tab] = rows
-                print(f"   -> {tab}: {max(0, len(rows)-1):,} filas")
-            except Exception as e:
-                print(f"   !! Error leyendo {tab}: {e}")
-    except Exception as e:
-        print(f"!! Error conectando a Sheets: {e}")
+    for tab in TABS:
+        _cache[tab] = leer_tab(tab)
     _cache["updated_at"] = datetime.now(LIMA).strftime("%d/%m/%Y %H:%M")
     print(f"   -> Cache OK · {_cache['updated_at']}")
 

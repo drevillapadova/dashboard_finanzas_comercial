@@ -1,8 +1,6 @@
 flask
 gunicorn
-gspread
-google-auth
+requests
 pandas
 apscheduler
 pytz
-python-dotenv
