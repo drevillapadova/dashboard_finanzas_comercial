@@ -1,0 +1,20 @@
+# Credenciales Google (nunca subir)
+*.json
+!package.json
+
+# Descargas temporales de Evolta
+/etl/fc_*/
+/tmp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini

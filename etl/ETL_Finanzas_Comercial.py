@@ -148,7 +148,7 @@ else:
     DOWNLOAD_DIR_FLUJO    = r"C:\Users\MKT\Documents\EVOLTA\fc_flujo"
 
 # ⬇ Cambia este ID por el del nuevo Google Sheet que crees para este dashboard
-GSHEETS_SPREADSHEET_ID = "TU_NUEVO_SHEET_ID_AQUI"
+GSHEETS_SPREADSHEET_ID = os.environ.get("GSHEETS_SPREADSHEET_ID", "")
 
 AÑOS = [2023, 2024, 2025, 2026]
 
