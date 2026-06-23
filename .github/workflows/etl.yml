@@ -12,7 +12,7 @@ on:
 jobs:
   etl:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -26,11 +26,8 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Instalar Google Chrome
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y google-chrome-stable
-          google-chrome --version
+      - name: Verificar Google Chrome
+        run: google-chrome --version
 
       - name: Instalar dependencias Python
         run: pip install -r etl/requirements.txt

@@ -150,7 +150,7 @@ else:
 # ⬇ Cambia este ID por el del nuevo Google Sheet que crees para este dashboard
 GSHEETS_SPREADSHEET_ID = os.environ.get("GSHEETS_SPREADSHEET_ID", "")
 
-AÑOS = [2023, 2024, 2025, 2026]
+AÑOS = [2024, 2025, 2026]
 
 for d in [DOWNLOAD_DIR, DOWNLOAD_DIR_VENTAS, DOWNLOAD_DIR_ING_DEP, DOWNLOAD_DIR_FLUJO]:
     os.makedirs(d, exist_ok=True)
