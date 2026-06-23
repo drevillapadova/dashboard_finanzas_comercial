@@ -932,7 +932,7 @@ document.getElementById('filtro-desde').addEventListener('change', renderAll);
 document.getElementById('filtro-hasta').addEventListener('change', renderAll);
 
 const hoy = new Date();
-document.getElementById('filtro-desde').value = new Date(hoy.getFullYear(), 0, 1).toISOString().slice(0, 10);
+document.getElementById('filtro-desde').value = '2023-01-01';
 document.getElementById('filtro-hasta').value = hoy.toISOString().slice(0, 10);
 
 loadData();
