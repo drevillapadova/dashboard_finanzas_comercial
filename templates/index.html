@@ -209,7 +209,7 @@
     font-size: 22px;
     font-weight: 700;
     color: var(--text);
-    font-family: 'Plus Jakarta Sans', inherit;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
     letter-spacing: -0.5px;
     line-height: 1.25;
     margin-top: 2px;
@@ -261,7 +261,7 @@
     border-bottom: 1px solid var(--border);
     color: var(--text);
     white-space: nowrap;
-    font-family: 'Plus Jakarta Sans', inherit;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
     font-size: 11.5px;
   }
   tbody tr:last-child td { border-bottom: none; }
@@ -338,14 +338,6 @@
 <!-- CONTROLES GLOBALES -->
 <div class="controls">
   <div class="ctrl-group">
-    <label>Moneda</label>
-    <div class="btn-moneda">
-      <button class="active" data-moneda="original" onclick="setMoneda(this)">Original</button>
-      <button data-moneda="soles" onclick="setMoneda(this)">S/ Soles</button>
-      <button data-moneda="dolares" onclick="setMoneda(this)">$ USD</button>
-    </div>
-  </div>
-  <div class="ctrl-group">
     <label>Proyecto</label>
     <select id="filtro-proyecto">
       <option value="">Todos</option>
@@ -358,6 +350,14 @@
   <div class="ctrl-group">
     <label>Hasta</label>
     <input type="date" id="filtro-hasta"/>
+  </div>
+  <div class="ctrl-group" style="margin-left:auto">
+    <label>Moneda</label>
+    <div class="btn-moneda">
+      <button class="active" data-moneda="original" onclick="setMoneda(this)">Original</button>
+      <button data-moneda="soles" onclick="setMoneda(this)">S/ Soles</button>
+      <button data-moneda="dolares" onclick="setMoneda(this)">$ USD</button>
+    </div>
   </div>
 </div>
 
