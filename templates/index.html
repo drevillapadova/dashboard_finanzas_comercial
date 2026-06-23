@@ -95,7 +95,6 @@
   .controls select:focus,
   .controls input[type=date]:focus { border-color: var(--blue); }
 
-  /* Currency pill group */
   .btn-moneda {
     display: flex;
     background: var(--bg);
@@ -116,11 +115,8 @@
     cursor: pointer;
     transition: all 0.15s;
   }
-  .btn-moneda button.active {
-    background: var(--surface);
-    color: var(--text);
-    box-shadow: var(--shadow-sm);
-  }
+  .btn-moneda button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+
   .btn-refresh {
     padding: 6px 13px;
     border: 1px solid var(--border-2);
@@ -144,7 +140,6 @@
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     display: flex;
-    gap: 0;
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -171,6 +166,23 @@
   .section { display: none; }
   .section.active { display: block; }
 
+  /* ── SUB-SECTION HEADER ── */
+  .sub-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 22px 0 12px;
+  }
+  .sub-header span {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .sub-header::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
   /* ── KPI CARDS ── */
   .kpi-row {
     display: grid;
@@ -187,23 +199,19 @@
     flex-direction: column;
     gap: 3px;
   }
-  .kpi-icon {
-    width: 32px; height: 32px;
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 15px;
-    margin-bottom: 8px;
-  }
-  .kpi-card.blue   .kpi-icon { background: var(--blue-soft);   }
-  .kpi-card.green  .kpi-icon { background: var(--green-soft);  }
-  .kpi-card.orange .kpi-icon { background: var(--orange-soft); }
-  .kpi-card.purple .kpi-icon { background: var(--purple-soft); }
+  .kpi-card.blue   { border-top: 3px solid var(--blue); }
+  .kpi-card.green  { border-top: 3px solid var(--green); }
+  .kpi-card.orange { border-top: 3px solid var(--orange); }
+  .kpi-card.purple { border-top: 3px solid var(--purple); }
+  .kpi-card.red    { border-top: 3px solid var(--red); }
+
   .kpi-label {
     font-size: 10px;
     color: var(--muted);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    margin-bottom: 4px;
   }
   .kpi-val {
     font-size: 22px;
@@ -212,9 +220,24 @@
     font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
     letter-spacing: -0.5px;
     line-height: 1.25;
-    margin-top: 2px;
   }
-  .kpi-sub { font-size: 11px; color: var(--muted-2); margin-top: 1px; }
+  .kpi-sub { font-size: 11px; color: var(--muted-2); margin-top: 2px; }
+
+  /* Progress bar inside KPI */
+  .kpi-progress-track {
+    height: 5px;
+    background: var(--border-2);
+    border-radius: 3px;
+    margin: 8px 0 2px;
+    overflow: hidden;
+  }
+  .kpi-progress-bar {
+    height: 100%;
+    background: var(--green);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+    width: 0%;
+  }
 
   /* ── CHARTS GRID ── */
   .charts-grid {
@@ -230,7 +253,8 @@
     padding: 18px 18px 14px;
   }
   .chart-card h3 { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 14px; }
-  .chart-wrap { position: relative; height: 248px; }
+  .chart-wrap { position: relative; height: 220px; }
+  .chart-wrap.tall { height: 260px; }
 
   /* ── TABLE ── */
   .table-wrap {
@@ -238,8 +262,9 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     overflow: hidden;
+    margin-bottom: 16px;
   }
-  .table-scroll { overflow-x: auto; max-height: 460px; overflow-y: auto; }
+  .table-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   thead th {
     background: var(--bg);
@@ -255,14 +280,15 @@
     top: 0;
     white-space: nowrap;
     z-index: 1;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
   }
   tbody td {
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
     color: var(--text);
     white-space: nowrap;
+    font-size: 12px;
     font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
-    font-size: 11.5px;
   }
   tbody tr:last-child td { border-bottom: none; }
   tbody tr:hover td { background: var(--bg); }
@@ -282,16 +308,12 @@
 
   /* ── LOADING ── */
   #loading {
-    position: fixed;
-    inset: 0;
+    position: fixed; inset: 0;
     background: rgba(238,240,243,0.92);
     backdrop-filter: blur(4px);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    gap: 14px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 9999; gap: 14px;
   }
   .spinner {
     width: 36px; height: 36px;
@@ -303,11 +325,8 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   #loading span { font-size: 13px; color: var(--muted); font-weight: 500; }
 
-  /* ── RESPONSIVE ── */
   @media (max-width: 768px) {
-    .header { padding: 0 16px; }
-    .controls { padding: 10px 16px; }
-    .section-tabs { padding: 0 16px; }
+    .header, .controls, .section-tabs { padding-left: 16px; padding-right: 16px; }
     .main { padding: 16px 16px 32px; }
     .charts-grid { grid-template-columns: 1fr; }
   }
@@ -315,10 +334,7 @@
 </head>
 <body>
 
-<div id="loading">
-  <div class="spinner"></div>
-  <span>Cargando datos...</span>
-</div>
+<div id="loading"><div class="spinner"></div><span>Cargando datos...</span></div>
 
 <!-- HEADER -->
 <header class="header">
@@ -339,9 +355,7 @@
 <div class="controls">
   <div class="ctrl-group">
     <label>Proyecto</label>
-    <select id="filtro-proyecto">
-      <option value="">Todos</option>
-    </select>
+    <select id="filtro-proyecto"><option value="">Todos</option></select>
   </div>
   <div class="ctrl-group">
     <label>Desde</label>
@@ -361,145 +375,154 @@
   </div>
 </div>
 
-<!-- TABS DE SECCIÓN -->
+<!-- TABS -->
 <div class="section-tabs">
   <button class="tab-btn active" onclick="showSection('ventas', this)">Ventas</button>
-  <button class="tab-btn" onclick="showSection('separaciones', this)">Separaciones</button>
-  <button class="tab-btn" onclick="showSection('ing-deposito', this)">Ingreso por Depósito</button>
   <button class="tab-btn" onclick="showSection('flujo-caja', this)">Proyección &amp; Cobranza</button>
 </div>
 
 <div class="main">
 
-  <!-- VENTAS -->
+  <!-- ══════════════════════════════════════════════════════
+       VENTAS
+  ══════════════════════════════════════════════════════ -->
   <div id="section-ventas" class="section active">
+
+    <!-- KPIs Ventas -->
     <div class="kpi-row">
       <div class="kpi-card blue">
-        <div class="kpi-icon">🏠</div>
         <div class="kpi-label">Unidades vendidas</div>
         <div class="kpi-val" id="kpi-v-unidades">—</div>
         <div class="kpi-sub">en el periodo</div>
       </div>
       <div class="kpi-card green">
-        <div class="kpi-icon">💰</div>
         <div class="kpi-label">Monto total</div>
         <div class="kpi-val" id="kpi-v-monto">—</div>
-        <div class="kpi-sub" id="kpi-v-moneda-label">moneda seleccionada</div>
+        <div class="kpi-sub" id="kpi-v-moneda-lbl">moneda seleccionada</div>
       </div>
       <div class="kpi-card orange">
-        <div class="kpi-icon">📊</div>
         <div class="kpi-label">Ticket promedio</div>
         <div class="kpi-val" id="kpi-v-ticket">—</div>
         <div class="kpi-sub">por unidad</div>
       </div>
+    </div>
+
+    <!-- Sub-sección Stock -->
+    <div class="sub-header"><span>Stock y Disponibilidad</span></div>
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Total stock</div>
+        <div class="kpi-val" id="kpi-st-total">—</div>
+        <div class="kpi-sub">unidades en cartera</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-label">Disponibles</div>
+        <div class="kpi-val" id="kpi-st-disponible">—</div>
+        <div class="kpi-sub">para la venta</div>
+      </div>
+      <div class="kpi-card blue">
+        <div class="kpi-label">Vendidas</div>
+        <div class="kpi-val" id="kpi-st-vendido">—</div>
+        <div class="kpi-sub">unidades colocadas</div>
+      </div>
       <div class="kpi-card purple">
-        <div class="kpi-icon">🏗️</div>
-        <div class="kpi-label">Proyectos activos</div>
-        <div class="kpi-val" id="kpi-v-proyectos">—</div>
-        <div class="kpi-sub">con ventas</div>
+        <div class="kpi-label">Separadas</div>
+        <div class="kpi-val" id="kpi-st-separado">—</div>
+        <div class="kpi-sub">en proceso</div>
       </div>
     </div>
+
+    <!-- Gráficos Ventas -->
     <div class="charts-grid">
       <div class="chart-card">
-        <h3>Ventas por proyecto</h3>
-        <div class="chart-wrap"><canvas id="chart-ventas-proyecto"></canvas></div>
+        <h3>Evolución mensual — Monto</h3>
+        <div class="chart-wrap"><canvas id="chart-v-evolucion"></canvas></div>
       </div>
       <div class="chart-card">
-        <h3>Evolución mensual de ventas</h3>
-        <div class="chart-wrap"><canvas id="chart-ventas-mes"></canvas></div>
+        <h3>Evolución mensual — Unidades</h3>
+        <div class="chart-wrap"><canvas id="chart-v-unidades-mes"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Monto vendido por proyecto</h3>
+        <div class="chart-wrap"><canvas id="chart-v-proyecto"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Distribución de stock</h3>
+        <div class="chart-wrap"><canvas id="chart-st-estado"></canvas></div>
       </div>
     </div>
+
+    <!-- Tabla Ventas -->
     <div class="table-wrap"><div class="table-scroll" id="tabla-ventas-wrap"></div></div>
   </div>
 
-  <!-- SEPARACIONES -->
-  <div id="section-separaciones" class="section">
-    <div class="kpi-row">
-      <div class="kpi-card blue">
-        <div class="kpi-icon">🤝</div>
-        <div class="kpi-label">Separaciones activas</div>
-        <div class="kpi-val" id="kpi-s-total">—</div>
-        <div class="kpi-sub">en stock</div>
-      </div>
-      <div class="kpi-card green">
-        <div class="kpi-icon">💵</div>
-        <div class="kpi-label">Monto separado</div>
-        <div class="kpi-val" id="kpi-s-monto">—</div>
-        <div class="kpi-sub" id="kpi-s-moneda-label">moneda seleccionada</div>
-      </div>
-      <div class="kpi-card orange">
-        <div class="kpi-icon">✅</div>
-        <div class="kpi-label">Disponibles</div>
-        <div class="kpi-val" id="kpi-s-disponibles">—</div>
-        <div class="kpi-sub">unidades sin separar</div>
-      </div>
-    </div>
-    <div class="charts-grid">
-      <div class="chart-card">
-        <h3>Estado de stock por proyecto</h3>
-        <div class="chart-wrap"><canvas id="chart-stock-estado"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h3>Distribución por tipo de inmueble</h3>
-        <div class="chart-wrap"><canvas id="chart-stock-tipo"></canvas></div>
-      </div>
-    </div>
-    <div class="table-wrap"><div class="table-scroll" id="tabla-stock-wrap"></div></div>
-  </div>
-
-  <!-- INGRESO POR DEPÓSITO -->
-  <div id="section-ing-deposito" class="section">
-    <div class="kpi-row">
-      <div class="kpi-card blue">
-        <div class="kpi-icon">🏦</div>
-        <div class="kpi-label">Depósitos registrados</div>
-        <div class="kpi-val" id="kpi-id-total">—</div>
-        <div class="kpi-sub">en el periodo</div>
-      </div>
-      <div class="kpi-card green">
-        <div class="kpi-icon">💳</div>
-        <div class="kpi-label">Monto ingresado</div>
-        <div class="kpi-val" id="kpi-id-monto">—</div>
-        <div class="kpi-sub" id="kpi-id-moneda-label">moneda seleccionada</div>
-      </div>
-    </div>
-    <div class="charts-grid">
-      <div class="chart-card">
-        <h3>Ingresos por proyecto</h3>
-        <div class="chart-wrap"><canvas id="chart-id-proyecto"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h3>Evolución mensual de ingresos</h3>
-        <div class="chart-wrap"><canvas id="chart-id-mes"></canvas></div>
-      </div>
-    </div>
-    <div class="table-wrap"><div class="table-scroll" id="tabla-id-wrap"></div></div>
-  </div>
-
-  <!-- PROYECCIÓN & COBRANZA -->
+  <!-- ══════════════════════════════════════════════════════
+       PROYECCIÓN & COBRANZA
+  ══════════════════════════════════════════════════════ -->
   <div id="section-flujo-caja" class="section">
     <div id="flujo-content">
-      <div class="placeholder">
-        <div class="icon">📋</div>
-        <p>Los datos de flujo de caja se mostrarán aquí una vez<br>que el reporte esté disponible en Evolta.</p>
+
+      <!-- KPIs Cobranza -->
+      <div class="kpi-row">
+        <div class="kpi-card blue">
+          <div class="kpi-label">Proyectado</div>
+          <div class="kpi-val" id="kpi-fc-proyectado">—</div>
+          <div class="kpi-sub">monto programado</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Cobrado</div>
+          <div class="kpi-val" id="kpi-fc-cobrado">—</div>
+          <div class="kpi-sub">efectivamente recibido</div>
+        </div>
+        <div class="kpi-card orange">
+          <div class="kpi-label">Por cobrar</div>
+          <div class="kpi-val" id="kpi-fc-porcobrar">—</div>
+          <div class="kpi-sub">saldo pendiente</div>
+        </div>
+        <div class="kpi-card purple">
+          <div class="kpi-label">Cumplimiento</div>
+          <div class="kpi-val" id="kpi-fc-cumplimiento">—</div>
+          <div class="kpi-progress-track"><div class="kpi-progress-bar" id="kpi-fc-progress"></div></div>
+          <div class="kpi-sub">avance de meta</div>
+        </div>
       </div>
-    </div>
+
+      <!-- Gráficos Cobranza -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3>Monto proyectado vs cobrado — por mes</h3>
+          <div class="chart-wrap"><canvas id="chart-fc-monto-mes"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>% Cumplimiento mensual</h3>
+          <div class="chart-wrap"><canvas id="chart-fc-cumpl-mes"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>Proyectado vs cobrado — por proyecto</h3>
+          <div class="chart-wrap tall"><canvas id="chart-fc-proy-proj"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>Saldo por cobrar — por proyecto</h3>
+          <div class="chart-wrap tall"><canvas id="chart-fc-saldo-proj"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Tabla Cobranza -->
+      <div class="table-wrap"><div class="table-scroll" id="tabla-fc-wrap"></div></div>
+
+    </div><!-- /flujo-content -->
   </div>
 
 </div><!-- /main -->
 
 <script>
-// ============================================================
-// CHART DEFAULTS
-// ============================================================
+// ── Chart defaults ──────────────────────────────────────────
 Chart.defaults.font.family = "'Plus Jakarta Sans', 'Segoe UI', sans-serif";
-Chart.defaults.font.size = 11;
-Chart.defaults.color = '#8a929c';
+Chart.defaults.font.size   = 11;
+Chart.defaults.color       = '#8a929c';
 
-// ============================================================
-// ESTADO GLOBAL
-// ============================================================
-let DATA = { ventas: [], stock: [], ing_deposito: [], flujo_caja: [] };
+// ── Estado global ───────────────────────────────────────────
+let DATA   = { ventas: [], stock: [], ing_deposito: [], flujo_caja: [] };
 let MONEDA = 'original';
 
 const COLORES_PROYECTO = {
@@ -510,16 +533,13 @@ const COLORES_PROYECTO = {
   'DOMINGO ORUE':          '#7b5bd6',
 };
 const COLOR_DEFAULT = '#9aa1ab';
-
 const CHARTS = {};
 
-// ============================================================
-// FETCH
-// ============================================================
+// ── Fetch ───────────────────────────────────────────────────
 async function loadData() {
   document.getElementById('loading').style.display = 'flex';
   try {
-    const r = await fetch('/api/data');
+    const r    = await fetch('/api/data');
     const json = await r.json();
     DATA.ventas       = csvToObjects(json.ventas       || []);
     DATA.stock        = csvToObjects(json.stock        || []);
@@ -541,9 +561,7 @@ async function refresh() {
   await loadData();
 }
 
-// ============================================================
-// UTILS
-// ============================================================
+// ── Utils ────────────────────────────────────────────────────
 function csvToObjects(rows) {
   if (!rows || rows.length < 2) return [];
   const headers = rows[0];
@@ -556,18 +574,33 @@ function csvToObjects(rows) {
 
 function fmt(val, moneda) {
   const n = parseFloat(val) || 0;
-  if (moneda === 'dolares') return '$ ' + n.toLocaleString('es-PE', {minimumFractionDigits: 0, maximumFractionDigits: 0});
-  return 'S/ ' + n.toLocaleString('es-PE', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  const prefix = moneda === 'dolares' ? '$ ' : 'S/ ';
+  return prefix + n.toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 function getMonedaLabel() {
   return MONEDA === 'dolares' ? 'USD' : MONEDA === 'soles' ? 'Soles SUNAT' : 'Moneda original';
 }
 
-function campoPrecio(row, prefijo = 'Precio') {
+function campoPrecio(row, prefijo) {
+  prefijo = prefijo || 'Precio';
   if (MONEDA === 'soles')   return parseFloat(row[prefijo + 'Soles'])   || 0;
   if (MONEDA === 'dolares') return parseFloat(row[prefijo + 'Dolares']) || 0;
   return parseFloat(row[prefijo + 'Original'] || row['PrecioVenta'] || row['Monto'] || 0);
+}
+
+// Detecta el nombre de columna buscando patrones (case-insensitive)
+function detectCol(obj, patterns) {
+  const keys = Object.keys(obj || {});
+  for (const pat of patterns) {
+    const found = keys.find(k => k.toLowerCase().includes(pat.toLowerCase()));
+    if (found) return found;
+  }
+  return '';
+}
+
+function getNum(row, campo) {
+  return campo ? (parseFloat(row[campo]) || 0) : 0;
 }
 
 function filtrarPorFecha(arr, campoFecha) {
@@ -577,9 +610,9 @@ function filtrarPorFecha(arr, campoFecha) {
   return arr.filter(r => {
     const f = r[campoFecha];
     if (!f) return true;
-    const fStr = f.substring(0, 10);
-    if (desde && fStr < desde) return false;
-    if (hasta && fStr > hasta) return false;
+    const s = f.substring(0, 10);
+    if (desde && s < desde) return false;
+    if (hasta && s > hasta) return false;
     return true;
   });
 }
@@ -587,7 +620,6 @@ function filtrarPorFecha(arr, campoFecha) {
 function filtrarPorProyecto(arr) {
   const p = document.getElementById('filtro-proyecto').value;
   if (!p) return arr;
-  // Si los datos no tienen columna Proyecto, no aplicar filtro
   const tieneProyecto = arr.some(r => r['Proyecto'] && r['Proyecto'].trim());
   if (!tieneProyecto) return arr;
   return arr.filter(r => (r['Proyecto'] || '').toUpperCase() === p.toUpperCase());
@@ -599,18 +631,14 @@ function aplicarFiltros(arr, campoFecha) {
 
 function agruparPorKey(arr, key, valFn) {
   const map = {};
-  arr.forEach(r => {
-    const k = r[key] || 'Sin dato';
-    map[k] = (map[k] || 0) + valFn(r);
-  });
+  arr.forEach(r => { const k = r[key] || 'Sin dato'; map[k] = (map[k] || 0) + valFn(r); });
   return map;
 }
 
 function agruparPorMes(arr, campoFecha, valFn) {
   const map = {};
   arr.forEach(r => {
-    const f = r[campoFecha] || '';
-    const mes = f.substring(0, 7);
+    const mes = (r[campoFecha] || '').substring(0, 7);
     if (!mes) return;
     map[mes] = (map[mes] || 0) + valFn(r);
   });
@@ -622,190 +650,250 @@ function coloresProyectos(labels) {
 }
 
 function upsertChart(id, config) {
-  if (CHARTS[id]) { CHARTS[id].destroy(); }
+  if (CHARTS[id]) CHARTS[id].destroy();
   const ctx = document.getElementById(id);
   if (!ctx) return;
   CHARTS[id] = new Chart(ctx, config);
 }
 
+const CHART_OPTS_BAR = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    y: { grid: { color: '#e9ebee' } },
+    x: { grid: { display: false } }
+  }
+};
+const CHART_OPTS_BAR_H = {
+  responsive: true, maintainAspectRatio: false,
+  indexAxis: 'y',
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid: { color: '#e9ebee' } },
+    y: { grid: { display: false } }
+  }
+};
+
 function tablaHTML(data, cols) {
   if (!data.length) return '<div class="table-empty">Sin datos para mostrar</div>';
   const header = cols.map(c => `<th>${c}</th>`).join('');
-  const rows = data.slice(0, 200).map(r =>
+  const rows   = data.slice(0, 200).map(r =>
     '<tr>' + cols.map(c => `<td>${r[c] ?? ''}</td>`).join('') + '</tr>'
   ).join('');
   return `<table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-// ============================================================
-// FILTRO PROYECTO
-// ============================================================
+// ── Filtro proyecto ──────────────────────────────────────────
 function poblarFiltroProyecto() {
   const proyectos = new Set();
-  [...DATA.ventas, ...DATA.stock].forEach(r => {
-    if (r['Proyecto']) proyectos.add(r['Proyecto']);
-  });
+  [...DATA.ventas, ...DATA.stock].forEach(r => { if (r['Proyecto']) proyectos.add(r['Proyecto']); });
   const sel = document.getElementById('filtro-proyecto');
   sel.innerHTML = '<option value="">Todos</option>';
   [...proyectos].sort().forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p; opt.textContent = p;
-    sel.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = p; o.textContent = p;
+    sel.appendChild(o);
   });
 }
 
-// ============================================================
-// RENDER VENTAS
-// ============================================================
+// ── Render Ventas ────────────────────────────────────────────
 function renderVentas() {
   const datos = aplicarFiltros(DATA.ventas, 'FechaVenta');
 
-  const unidades  = datos.length;
-  const monto     = datos.reduce((s, r) => s + campoPrecio(r), 0);
-  const ticket    = unidades ? monto / unidades : 0;
-  const proyectos = new Set(datos.map(r => r['Proyecto'])).size;
+  const unidades = datos.length;
+  const monto    = datos.reduce((s, r) => s + campoPrecio(r), 0);
+  const ticket   = unidades ? monto / unidades : 0;
 
   document.getElementById('kpi-v-unidades').textContent  = unidades.toLocaleString('es-PE');
   document.getElementById('kpi-v-monto').textContent     = fmt(monto, MONEDA);
   document.getElementById('kpi-v-ticket').textContent    = fmt(ticket, MONEDA);
-  document.getElementById('kpi-v-proyectos').textContent = proyectos;
-  document.getElementById('kpi-v-moneda-label').textContent = getMonedaLabel();
+  document.getElementById('kpi-v-moneda-lbl').textContent = getMonedaLabel();
 
-  const porProyecto = agruparPorKey(datos, 'Proyecto', r => campoPrecio(r));
-  const labels1 = Object.keys(porProyecto);
-  upsertChart('chart-ventas-proyecto', {
-    type: 'bar',
-    data: { labels: labels1, datasets: [{ label: 'Monto', data: Object.values(porProyecto), backgroundColor: coloresProyectos(labels1), borderRadius: 6, borderSkipped: false }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#e9ebee' } }, x: { grid: { display: false } } } }
-  });
+  // Stock KPIs — sin filtro de fecha para mostrar estado actual
+  const stockFiltrado = filtrarPorProyecto(DATA.stock);
+  const totalStock  = stockFiltrado.length;
+  const disponibles = stockFiltrado.filter(r => (r['Estado'] || '').toLowerCase().includes('disponib')).length;
+  const vendidos    = stockFiltrado.filter(r => (r['Estado'] || '').toLowerCase().includes('vendid')).length;
+  const separados   = stockFiltrado.filter(r => (r['Estado'] || '').toLowerCase().includes('separac')).length;
 
+  document.getElementById('kpi-st-total').textContent     = totalStock.toLocaleString('es-PE');
+  document.getElementById('kpi-st-disponible').textContent = disponibles.toLocaleString('es-PE');
+  document.getElementById('kpi-st-vendido').textContent   = vendidos.toLocaleString('es-PE');
+  document.getElementById('kpi-st-separado').textContent  = separados.toLocaleString('es-PE');
+
+  // Chart: evolución monto mensual
   const porMes = agruparPorMes(datos, 'FechaVenta', r => campoPrecio(r));
-  upsertChart('chart-ventas-mes', {
+  upsertChart('chart-v-evolucion', {
     type: 'line',
-    data: { labels: Object.keys(porMes), datasets: [{ label: 'Monto', data: Object.values(porMes), borderColor: '#2f6df6', backgroundColor: 'rgba(47,109,246,0.08)', fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: '#2f6df6' }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#e9ebee' } }, x: { grid: { display: false } } } }
+    data: { labels: Object.keys(porMes), datasets: [{
+      label: 'Monto', data: Object.values(porMes),
+      borderColor: '#2f6df6', backgroundColor: 'rgba(47,109,246,0.08)',
+      fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: '#2f6df6'
+    }]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { grid: { color: '#e9ebee' } }, x: { grid: { display: false } } }
+    }
   });
 
-  const cols = ['FechaVenta','Proyecto','NroInmueble','TipoInmueble','NombresTitular','TipoMoneda','PrecioVenta','PrecioSoles','PrecioDolares','Vendedor','Estado'];
-  document.getElementById('tabla-ventas-wrap').innerHTML = tablaHTML(datos, cols.filter(c => datos[0] && c in datos[0]));
-}
+  // Chart: unidades por mes
+  const unidadesMes = agruparPorMes(datos, 'FechaVenta', () => 1);
+  upsertChart('chart-v-unidades-mes', {
+    type: 'bar',
+    data: { labels: Object.keys(unidadesMes), datasets: [{
+      label: 'Unidades', data: Object.values(unidadesMes),
+      backgroundColor: '#2f6df6', borderRadius: 6, borderSkipped: false
+    }]},
+    options: { ...CHART_OPTS_BAR,
+      scales: { ...CHART_OPTS_BAR.scales, y: { ...CHART_OPTS_BAR.scales.y, ticks: { precision: 0 } } }
+    }
+  });
 
-// ============================================================
-// RENDER SEPARACIONES
-// ============================================================
-function renderSeparaciones() {
-  const datos = aplicarFiltros(DATA.stock, 'FechaSepDefinitiva');
-  const seps  = datos.filter(r => (r['Estado'] || '').toLowerCase().includes('separac'));
-  const disp  = datos.filter(r => (r['Estado'] || '').toLowerCase().includes('disponib'));
+  // Chart: monto por proyecto
+  const porProy = agruparPorKey(datos, 'Proyecto', r => campoPrecio(r));
+  const labProy = Object.keys(porProy);
+  upsertChart('chart-v-proyecto', {
+    type: 'bar',
+    data: { labels: labProy, datasets: [{
+      label: 'Monto', data: Object.values(porProy),
+      backgroundColor: coloresProyectos(labProy), borderRadius: 6, borderSkipped: false
+    }]},
+    options: CHART_OPTS_BAR
+  });
 
-  document.getElementById('kpi-s-total').textContent       = seps.length.toLocaleString('es-PE');
-  document.getElementById('kpi-s-monto').textContent       = fmt(seps.reduce((s, r) => s + campoPrecio(r), 0), MONEDA);
-  document.getElementById('kpi-s-disponibles').textContent = disp.length.toLocaleString('es-PE');
-  document.getElementById('kpi-s-moneda-label').textContent = getMonedaLabel();
-
-  const estados = agruparPorKey(datos, 'Estado', () => 1);
-  const labels2 = Object.keys(estados);
-  upsertChart('chart-stock-estado', {
+  // Chart: distribución stock (doughnut)
+  const estadosStock = agruparPorKey(stockFiltrado, 'Estado', () => 1);
+  upsertChart('chart-st-estado', {
     type: 'doughnut',
-    data: { labels: labels2, datasets: [{ data: Object.values(estados), backgroundColor: ['#2f6df6','#19b36b','#e0913a','#d6466f','#7b5bd6','#e0913a'], borderWidth: 0, hoverOffset: 4 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 14, boxWidth: 10 } } }, cutout: '60%' }
+    data: { labels: Object.keys(estadosStock), datasets: [{
+      data: Object.values(estadosStock),
+      backgroundColor: ['#19b36b','#2f6df6','#e0913a','#d6466f','#7b5bd6','#9aa1ab'],
+      borderWidth: 0, hoverOffset: 6
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '62%',
+      plugins: { legend: { position: 'bottom', labels: { padding: 14, boxWidth: 10 } } }
+    }
   });
 
-  const tipos = agruparPorKey(datos, 'TipoInmueble', () => 1);
-  const labels3 = Object.keys(tipos);
-  upsertChart('chart-stock-tipo', {
-    type: 'bar',
-    data: { labels: labels3, datasets: [{ label: 'Unidades', data: Object.values(tipos), backgroundColor: '#2f6df6', borderRadius: 6, borderSkipped: false }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#e9ebee' } }, x: { grid: { display: false } } } }
-  });
-
-  const cols = ['Proyecto','TipoInmueble','NroInmuebleActual','Estado','Moneda','PrecioVenta','PrecioSoles','PrecioDolares','Vendedor'];
-  document.getElementById('tabla-stock-wrap').innerHTML = tablaHTML(datos, cols.filter(c => datos[0] && c in datos[0]));
+  // Tabla
+  const cols = ['FechaVenta','Proyecto','NroInmueble','TipoInmueble','NombresTitular',
+                'TipoMoneda','PrecioVenta','PrecioSoles','PrecioDolares','Vendedor','Estado'];
+  document.getElementById('tabla-ventas-wrap').innerHTML =
+    tablaHTML(datos, cols.filter(c => datos[0] && c in datos[0]));
 }
 
-// ============================================================
-// RENDER INGRESO DEPÓSITO
-// ============================================================
-function renderIngDeposito() {
-  const campoFecha = DATA.ing_deposito[0] ? Object.keys(DATA.ing_deposito[0]).find(k => k.toLowerCase().includes('fecha')) || '' : '';
-  const datos = aplicarFiltros(DATA.ing_deposito, campoFecha);
-
-  const total = datos.length;
-  const monto = datos.reduce((s, r) => s + campoPrecio(r, 'Precio'), 0);
-
-  document.getElementById('kpi-id-total').textContent = total.toLocaleString('es-PE');
-  document.getElementById('kpi-id-monto').textContent = fmt(monto, MONEDA);
-  document.getElementById('kpi-id-moneda-label').textContent = getMonedaLabel();
-
-  const porProyecto = agruparPorKey(datos, 'Proyecto', r => campoPrecio(r, 'Precio'));
-  const labels4 = Object.keys(porProyecto);
-  upsertChart('chart-id-proyecto', {
-    type: 'bar',
-    data: { labels: labels4, datasets: [{ label: 'Monto', data: Object.values(porProyecto), backgroundColor: coloresProyectos(labels4), borderRadius: 6, borderSkipped: false }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#e9ebee' } }, x: { grid: { display: false } } } }
-  });
-
-  const porMes = agruparPorMes(datos, campoFecha, r => campoPrecio(r, 'Precio'));
-  upsertChart('chart-id-mes', {
-    type: 'bar',
-    data: { labels: Object.keys(porMes), datasets: [{ label: 'Monto', data: Object.values(porMes), backgroundColor: '#19b36b', borderRadius: 6, borderSkipped: false }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#e9ebee' } }, x: { grid: { display: false } } } }
-  });
-
-  const cols = Object.keys(datos[0] || {}).slice(0, 10);
-  document.getElementById('tabla-id-wrap').innerHTML = tablaHTML(datos, cols);
-}
-
-// ============================================================
-// RENDER FLUJO DE CAJA
-// ============================================================
+// ── Render Proyección & Cobranza ─────────────────────────────
 function renderFlujoCaja() {
-  const campoKey = Object.keys(DATA.flujo_caja[0] || {}).find(k => k.toLowerCase().includes('fecha')) || '';
-  const datos = aplicarFiltros(DATA.flujo_caja, campoKey);
-  const container = document.getElementById('flujo-content');
+  if (!DATA.flujo_caja.length) { return; }
 
-  if (!datos.length) {
-    container.innerHTML = `
-      <div class="placeholder">
-        <div class="icon">📋</div>
-        <p>Los datos de flujo de caja se mostrarán aquí una vez<br>que el reporte esté disponible en Evolta.</p>
-      </div>`;
-    return;
+  const muestra   = DATA.flujo_caja[0];
+  const campFecha = detectCol(muestra, ['fecha','mes','periodo','vencim','programad']);
+  const campProy  = detectCol(muestra, ['proyectado','programado','previsto','presupuest','cuota','monto_prog']);
+  const campCobr  = detectCol(muestra, ['cobrado','pagado','recibido','ejecutado','real','abonado']);
+  const campProj  = detectCol(muestra, ['proyecto']);
+
+  const datos = aplicarFiltros(DATA.flujo_caja, campFecha);
+  if (!datos.length) { return; }
+
+  const totalProy = datos.reduce((s, r) => s + getNum(r, campProy), 0);
+  const totalCobr = datos.reduce((s, r) => s + getNum(r, campCobr), 0);
+  const porCobrar = Math.max(0, totalProy - totalCobr);
+  const pctCumpl  = totalProy > 0 ? (totalCobr / totalProy * 100) : 0;
+
+  document.getElementById('kpi-fc-proyectado').textContent  = campProy ? fmt(totalProy, MONEDA) : '—';
+  document.getElementById('kpi-fc-cobrado').textContent     = campCobr ? fmt(totalCobr, MONEDA) : '—';
+  document.getElementById('kpi-fc-porcobrar').textContent   = (campProy && campCobr) ? fmt(porCobrar, MONEDA) : '—';
+  document.getElementById('kpi-fc-cumplimiento').textContent = (campProy && campCobr) ? pctCumpl.toFixed(1) + '%' : '—';
+  const prog = document.getElementById('kpi-fc-progress');
+  if (prog) {
+    prog.style.width = Math.min(100, pctCumpl) + '%';
+    prog.style.background = pctCumpl >= 90 ? '#19b36b' : pctCumpl >= 60 ? '#e0913a' : '#d6466f';
   }
 
-  const campoMonto = Object.keys(datos[0]).find(k => ['monto','importe','cuota','pago'].some(x => k.toLowerCase().includes(x))) || '';
-  const total = datos.reduce((s, r) => s + (parseFloat(r[campoMonto]) || 0), 0);
+  // Chart 1: Monto proy vs cobrado por mes
+  if (campFecha && (campProy || campCobr)) {
+    const mProy = agruparPorMes(datos, campFecha, r => getNum(r, campProy));
+    const mCobr = agruparPorMes(datos, campFecha, r => getNum(r, campCobr));
+    const allM  = [...new Set([...Object.keys(mProy), ...Object.keys(mCobr)])].sort();
+    upsertChart('chart-fc-monto-mes', {
+      type: 'bar',
+      data: { labels: allM, datasets: [
+        { label: 'Proyectado', data: allM.map(m => mProy[m] || 0), backgroundColor: 'rgba(47,109,246,0.75)', borderRadius: 4, borderSkipped: false },
+        { label: 'Cobrado',    data: allM.map(m => mCobr[m] || 0), backgroundColor: 'rgba(25,179,107,0.75)',  borderRadius: 4, borderSkipped: false }
+      ]},
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { padding: 12, boxWidth: 10 } } },
+        scales: { y: { grid: { color: '#e9ebee' } }, x: { grid: { display: false } } }
+      }
+    });
 
-  container.innerHTML = `
-    <div class="kpi-row">
-      <div class="kpi-card blue">
-        <div class="kpi-icon">📋</div>
-        <div class="kpi-label">Registros</div>
-        <div class="kpi-val">${datos.length.toLocaleString('es-PE')}</div>
-      </div>
-      <div class="kpi-card green">
-        <div class="kpi-icon">📈</div>
-        <div class="kpi-label">Total proyectado</div>
-        <div class="kpi-val">${fmt(total, MONEDA)}</div>
-        <div class="kpi-sub">${getMonedaLabel()}</div>
-      </div>
-    </div>
-    <div class="table-wrap"><div class="table-scroll">${tablaHTML(datos, Object.keys(datos[0]).slice(0, 10))}</div></div>`;
+    // Chart 2: % Cumplimiento mensual
+    const cumplMes = allM.map(m => {
+      const p = mProy[m] || 0;
+      const c = mCobr[m] || 0;
+      return p > 0 ? +(c / p * 100).toFixed(1) : 0;
+    });
+    upsertChart('chart-fc-cumpl-mes', {
+      type: 'line',
+      data: { labels: allM, datasets: [
+        { label: '% Cumplimiento', data: cumplMes,
+          borderColor: '#19b36b', backgroundColor: 'rgba(25,179,107,0.08)',
+          fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: '#19b36b' },
+        { label: 'Meta 100%', data: allM.map(() => 100),
+          borderColor: '#e0913a', borderDash: [5, 5], pointRadius: 0, fill: false }
+      ]},
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { padding: 12, boxWidth: 10 } } },
+        scales: {
+          y: { min: 0, grid: { color: '#e9ebee' }, ticks: { callback: v => v + '%' } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // Chart 3 & 4: por proyecto (horizontal bars)
+  if (campProj && (campProy || campCobr)) {
+    const mapProy = agruparPorKey(datos, campProj, r => getNum(r, campProy));
+    const mapCobr = agruparPorKey(datos, campProj, r => getNum(r, campCobr));
+    const labPjs  = Object.keys(mapProy).length ? Object.keys(mapProy) : Object.keys(mapCobr);
+
+    upsertChart('chart-fc-proy-proj', {
+      type: 'bar',
+      data: { labels: labPjs, datasets: [
+        { label: 'Proyectado', data: labPjs.map(p => mapProy[p] || 0), backgroundColor: 'rgba(47,109,246,0.75)', borderRadius: 4, borderSkipped: false },
+        { label: 'Cobrado',    data: labPjs.map(p => mapCobr[p] || 0), backgroundColor: 'rgba(25,179,107,0.75)',  borderRadius: 4, borderSkipped: false }
+      ]},
+      options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        plugins: { legend: { position: 'bottom', labels: { padding: 12, boxWidth: 10 } } },
+        scales: { x: { grid: { color: '#e9ebee' } }, y: { grid: { display: false } } }
+      }
+    });
+
+    const saldos = labPjs.map(p => Math.max(0, (mapProy[p] || 0) - (mapCobr[p] || 0)));
+    upsertChart('chart-fc-saldo-proj', {
+      type: 'bar',
+      data: { labels: labPjs, datasets: [{
+        label: 'Por cobrar', data: saldos,
+        backgroundColor: '#e0913a', borderRadius: 4, borderSkipped: false
+      }]},
+      options: { ...CHART_OPTS_BAR_H }
+    });
+  }
+
+  // Tabla
+  const cols = Object.keys(datos[0] || {}).slice(0, 12);
+  document.getElementById('tabla-fc-wrap').innerHTML = tablaHTML(datos, cols);
 }
 
-// ============================================================
-// RENDER ALL
-// ============================================================
+// ── Render all ───────────────────────────────────────────────
 function renderAll() {
   renderVentas();
-  renderSeparaciones();
-  renderIngDeposito();
   renderFlujoCaja();
 }
 
-// ============================================================
-// UI HANDLERS
-// ============================================================
+// ── UI handlers ──────────────────────────────────────────────
 function showSection(name, btn) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -825,8 +913,7 @@ document.getElementById('filtro-desde').addEventListener('change', renderAll);
 document.getElementById('filtro-hasta').addEventListener('change', renderAll);
 
 const hoy = new Date();
-const ini = new Date(hoy.getFullYear(), 0, 1);
-document.getElementById('filtro-desde').value = ini.toISOString().slice(0, 10);
+document.getElementById('filtro-desde').value = new Date(hoy.getFullYear(), 0, 1).toISOString().slice(0, 10);
 document.getElementById('filtro-hasta').value = hoy.toISOString().slice(0, 10);
 
 loadData();
