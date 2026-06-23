@@ -355,6 +355,10 @@
     <select id="filtro-proyecto"><option value="">Todos</option></select>
   </div>
   <div class="ctrl-group">
+    <label>Tipo</label>
+    <select id="filtro-tipo"><option value="">Todos</option></select>
+  </div>
+  <div class="ctrl-group">
     <label>Desde</label>
     <input type="date" id="filtro-desde"/>
   </div>
@@ -535,6 +539,7 @@ async function loadData() {
     document.getElementById('ultima-actualizacion').textContent =
       'Actualizado: ' + (json.ultima_actualizacion || '—');
     poblarFiltroProyecto();
+    poblarFiltroTipo();
     renderAll();
   } catch(e) {
     console.error('Error cargando datos:', e);
@@ -615,8 +620,21 @@ function filtrarPorProyecto(arr) {
   return arr.filter(r => (r['Proyecto'] || '').toUpperCase() === p.toUpperCase());
 }
 
+function filtrarPorTipo(arr) {
+  const t = document.getElementById('filtro-tipo').value;
+  if (!t) return arr;
+  // detecta columna tipo dinámicamente
+  const muestra = arr[0];
+  if (!muestra) return arr;
+  const col = Object.keys(muestra).find(k =>
+    ['tipo','tipounidad','tipoproducto','tipoinmueble','producto'].includes(k.toLowerCase())
+  );
+  if (!col) return arr;
+  return arr.filter(r => (r[col] || '').toUpperCase() === t.toUpperCase());
+}
+
 function aplicarFiltros(arr, campoFecha) {
-  return filtrarPorProyecto(filtrarPorFecha(arr, campoFecha));
+  return filtrarPorTipo(filtrarPorProyecto(filtrarPorFecha(arr, campoFecha)));
 }
 
 function agruparPorKey(arr, key, valFn) {
@@ -673,7 +691,7 @@ function tablaHTML(data, cols) {
   return `<table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-// ── Filtro proyecto ──────────────────────────────────────────
+// ── Filtros proyecto y tipo ──────────────────────────────────
 function poblarFiltroProyecto() {
   const proyectos = new Set();
   [...DATA.ventas, ...DATA.stock].forEach(r => { if (r['Proyecto']) proyectos.add(r['Proyecto']); });
@@ -682,6 +700,22 @@ function poblarFiltroProyecto() {
   [...proyectos].sort().forEach(p => {
     const o = document.createElement('option');
     o.value = p; o.textContent = p;
+    sel.appendChild(o);
+  });
+}
+
+function poblarFiltroTipo() {
+  const tipos = new Set();
+  const colRegex = /^(tipo|tipounidad|tipoproducto|tipoinmueble|producto)$/i;
+  [...DATA.ventas, ...DATA.stock].forEach(r => {
+    const col = Object.keys(r).find(k => colRegex.test(k));
+    if (col && r[col] && r[col].trim()) tipos.add(r[col].trim());
+  });
+  const sel = document.getElementById('filtro-tipo');
+  sel.innerHTML = '<option value="">Todos</option>';
+  [...tipos].sort().forEach(t => {
+    const o = document.createElement('option');
+    o.value = t; o.textContent = t;
     sel.appendChild(o);
   });
 }
@@ -893,6 +927,7 @@ function setMoneda(btn) {
 }
 
 document.getElementById('filtro-proyecto').addEventListener('change', renderAll);
+document.getElementById('filtro-tipo').addEventListener('change', renderAll);
 document.getElementById('filtro-desde').addEventListener('change', renderAll);
 document.getElementById('filtro-hasta').addEventListener('change', renderAll);
 
