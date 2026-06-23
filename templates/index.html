@@ -452,8 +452,6 @@
       </div>
     </div>
 
-    <!-- Tabla Ventas -->
-    <div class="table-wrap"><div class="table-scroll" id="tabla-ventas-wrap"></div></div>
   </div>
 
   <!-- ══════════════════════════════════════════════════════
@@ -506,9 +504,6 @@
           <div class="chart-wrap tall"><canvas id="chart-fc-saldo-proj"></canvas></div>
         </div>
       </div>
-
-      <!-- Tabla Cobranza -->
-      <div class="table-wrap"><div class="table-scroll" id="tabla-fc-wrap"></div></div>
 
     </div><!-- /flujo-content -->
   </div>
@@ -776,11 +771,6 @@ function renderVentas() {
     }
   });
 
-  // Tabla
-  const cols = ['FechaVenta','Proyecto','NroInmueble','TipoInmueble','NombresTitular',
-                'TipoMoneda','PrecioVenta','PrecioSoles','PrecioDolares','Vendedor','Estado'];
-  document.getElementById('tabla-ventas-wrap').innerHTML =
-    tablaHTML(datos, cols.filter(c => datos[0] && c in datos[0]));
 }
 
 // ── Render Proyección & Cobranza ─────────────────────────────
@@ -882,9 +872,6 @@ function renderFlujoCaja() {
     });
   }
 
-  // Tabla
-  const cols = Object.keys(datos[0] || {}).slice(0, 12);
-  document.getElementById('tabla-fc-wrap').innerHTML = tablaHTML(datos, cols);
 }
 
 // ── Render all ───────────────────────────────────────────────
