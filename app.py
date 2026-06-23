@@ -9,7 +9,7 @@ app  = Flask(__name__)
 LIMA = pytz.timezone("America/Lima")
 
 SHEET_ID = "18uWdlUjIf1v9n4RSuEw3AK-LBseTtD78jNZtLTanF2U"
-TABS     = ["VENTAS", "STOCK", "INGRESO_DEPOSITO", "FLUJO_CAJA"]
+TABS     = ["VENTAS", "STOCK", "INGRESO_DEPOSITO"]
 
 _cache = {t: [] for t in TABS}
 _cache["updated_at"] = None
@@ -61,7 +61,6 @@ def api_data():
         "ventas":               _cache["VENTAS"],
         "stock":                _cache["STOCK"],
         "ing_deposito":         _cache["INGRESO_DEPOSITO"],
-        "flujo_caja":           _cache["FLUJO_CAJA"],
         "ultima_actualizacion": _cache["updated_at"],
     })
 

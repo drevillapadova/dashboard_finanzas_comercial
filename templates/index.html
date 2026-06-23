@@ -85,12 +85,14 @@
     border-radius: var(--radius-sm);
     padding: 5px 9px;
     font-size: 12px;
-    font-family: 'Plus Jakarta Sans', inherit;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial, sans-serif !important;
     background: var(--bg);
     color: var(--text);
     cursor: pointer;
     outline: none;
     transition: border-color 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
   }
   .controls select:focus,
   .controls input[type=date]:focus { border-color: var(--blue); }
@@ -199,11 +201,6 @@
     flex-direction: column;
     gap: 3px;
   }
-  .kpi-card.blue   { border-top: 3px solid var(--blue); }
-  .kpi-card.green  { border-top: 3px solid var(--green); }
-  .kpi-card.orange { border-top: 3px solid var(--orange); }
-  .kpi-card.purple { border-top: 3px solid var(--purple); }
-  .kpi-card.red    { border-top: 3px solid var(--red); }
 
   .kpi-label {
     font-size: 10px;
@@ -425,11 +422,6 @@
         <div class="kpi-val" id="kpi-st-vendido">—</div>
         <div class="kpi-sub">unidades colocadas</div>
       </div>
-      <div class="kpi-card purple">
-        <div class="kpi-label">Separadas</div>
-        <div class="kpi-val" id="kpi-st-separado">—</div>
-        <div class="kpi-sub">en proceso</div>
-      </div>
     </div>
 
     <!-- Gráficos Ventas -->
@@ -517,8 +509,9 @@ Chart.defaults.font.size   = 11;
 Chart.defaults.color       = '#8a929c';
 
 // ── Estado global ───────────────────────────────────────────
-let DATA   = { ventas: [], stock: [], ing_deposito: [], flujo_caja: [] };
+let DATA   = { ventas: [], stock: [], ing_deposito: [] };
 let MONEDA = 'original';
+const FX   = 3.75; // TC fallback PEN/USD
 
 const COLORES_PROYECTO = {
   'HELIO - SANTA BEATRIZ': '#2f6df6',
@@ -539,7 +532,6 @@ async function loadData() {
     DATA.ventas       = csvToObjects(json.ventas       || []);
     DATA.stock        = csvToObjects(json.stock        || []);
     DATA.ing_deposito = csvToObjects(json.ing_deposito || []);
-    DATA.flujo_caja   = csvToObjects(json.flujo_caja   || []);
     document.getElementById('ultima-actualizacion').textContent =
       'Actualizado: ' + (json.ultima_actualizacion || '—');
     poblarFiltroProyecto();
@@ -577,11 +569,14 @@ function getMonedaLabel() {
   return MONEDA === 'dolares' ? 'USD' : MONEDA === 'soles' ? 'Soles SUNAT' : 'Moneda original';
 }
 
-function campoPrecio(row, prefijo) {
-  prefijo = prefijo || 'Precio';
-  if (MONEDA === 'soles')   return parseFloat(row[prefijo + 'Soles'])   || 0;
-  if (MONEDA === 'dolares') return parseFloat(row[prefijo + 'Dolares']) || 0;
-  return parseFloat(row[prefijo + 'Original'] || row['PrecioVenta'] || row['Monto'] || 0);
+function campoPrecio(row) {
+  // ETL pre-convierte a PrecioVentaSoles; PrecioVenta es la moneda original
+  if (MONEDA === 'soles')
+    return parseFloat(row['PrecioVentaSoles']) || parseFloat(row['PrecioVenta']) || 0;
+  if (MONEDA === 'dolares')
+    return (parseFloat(row['PrecioVentaSoles']) / FX) || parseFloat(row['PrecioVenta']) || 0;
+  // original: mostrar tal como viene (puede ser USD o PEN)
+  return parseFloat(row['PrecioVenta']) || 0;
 }
 
 // Detecta el nombre de columna buscando patrones (case-insensitive)
@@ -704,17 +699,15 @@ function renderVentas() {
   document.getElementById('kpi-v-ticket').textContent    = fmt(ticket, MONEDA);
   document.getElementById('kpi-v-moneda-lbl').textContent = getMonedaLabel();
 
-  // Stock KPIs — sin filtro de fecha para mostrar estado actual
+  // Stock KPIs — solo disponibles y vendidos, sin separaciones
   const stockFiltrado = filtrarPorProyecto(DATA.stock);
-  const totalStock  = stockFiltrado.length;
   const disponibles = stockFiltrado.filter(r => (r['Estado'] || '').toLowerCase().includes('disponib')).length;
   const vendidos    = stockFiltrado.filter(r => (r['Estado'] || '').toLowerCase().includes('vendid')).length;
-  const separados   = stockFiltrado.filter(r => (r['Estado'] || '').toLowerCase().includes('separac')).length;
+  const totalStock  = stockFiltrado.length;
 
-  document.getElementById('kpi-st-total').textContent     = totalStock.toLocaleString('es-PE');
+  document.getElementById('kpi-st-total').textContent      = totalStock.toLocaleString('es-PE');
   document.getElementById('kpi-st-disponible').textContent = disponibles.toLocaleString('es-PE');
-  document.getElementById('kpi-st-vendido').textContent   = vendidos.toLocaleString('es-PE');
-  document.getElementById('kpi-st-separado').textContent  = separados.toLocaleString('es-PE');
+  document.getElementById('kpi-st-vendido').textContent    = vendidos.toLocaleString('es-PE');
 
   // Chart: evolución monto mensual
   const porMes = agruparPorMes(datos, 'FechaVenta', r => campoPrecio(r));
@@ -731,16 +724,18 @@ function renderVentas() {
     }
   });
 
-  // Chart: unidades por mes
+  // Chart: evolución unidades por mes (línea de tendencia)
   const unidadesMes = agruparPorMes(datos, 'FechaVenta', () => 1);
   upsertChart('chart-v-unidades-mes', {
-    type: 'bar',
+    type: 'line',
     data: { labels: Object.keys(unidadesMes), datasets: [{
       label: 'Unidades', data: Object.values(unidadesMes),
-      backgroundColor: '#2f6df6', borderRadius: 6, borderSkipped: false
+      borderColor: '#19b36b', backgroundColor: 'rgba(25,179,107,0.08)',
+      fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: '#19b36b'
     }]},
-    options: { ...CHART_OPTS_BAR,
-      scales: { ...CHART_OPTS_BAR.scales, y: { ...CHART_OPTS_BAR.scales.y, ticks: { precision: 0 } } }
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { grid: { color: '#e9ebee' }, ticks: { precision: 0 } }, x: { grid: { display: false } } }
     }
   });
 
@@ -756,8 +751,9 @@ function renderVentas() {
     options: CHART_OPTS_BAR
   });
 
-  // Chart: distribución stock (doughnut)
-  const estadosStock = agruparPorKey(stockFiltrado, 'Estado', () => 1);
+  // Chart: distribución stock — sin separaciones
+  const stockSinSep  = stockFiltrado.filter(r => !(r['Estado'] || '').toLowerCase().includes('separac'));
+  const estadosStock = agruparPorKey(stockSinSep, 'Estado', () => 1);
   upsertChart('chart-st-estado', {
     type: 'doughnut',
     data: { labels: Object.keys(estadosStock), datasets: [{
@@ -774,16 +770,17 @@ function renderVentas() {
 }
 
 // ── Render Proyección & Cobranza ─────────────────────────────
+// Usa INGRESO_DEPOSITO del ETL (RepIngresoxDeposito, filtrado Etapa=VENTA)
 function renderFlujoCaja() {
-  if (!DATA.flujo_caja.length) { return; }
+  if (!DATA.ing_deposito.length) { return; }
 
-  const muestra   = DATA.flujo_caja[0];
+  const muestra   = DATA.ing_deposito[0];
   const campFecha = detectCol(muestra, ['fecha','mes','periodo','vencim','programad']);
-  const campProy  = detectCol(muestra, ['proyectado','programado','previsto','presupuest','cuota','monto_prog']);
-  const campCobr  = detectCol(muestra, ['cobrado','pagado','recibido','ejecutado','real','abonado']);
+  const campProy  = detectCol(muestra, ['programado','cuota','proyectado','previsto','presupuest','monto_prog','importe']);
+  const campCobr  = detectCol(muestra, ['cobrado','depositado','pagado','recibido','ejecutado','real','abonado']);
   const campProj  = detectCol(muestra, ['proyecto']);
 
-  const datos = aplicarFiltros(DATA.flujo_caja, campFecha);
+  const datos = aplicarFiltros(DATA.ing_deposito, campFecha);
   if (!datos.length) { return; }
 
   const totalProy = datos.reduce((s, r) => s + getNum(r, campProy), 0);
