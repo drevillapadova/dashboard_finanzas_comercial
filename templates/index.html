@@ -430,11 +430,6 @@
         <div class="kpi-val" id="kpi-st-disponible">—</div>
         <div class="kpi-sub">para la venta</div>
       </div>
-      <div class="kpi-card blue">
-        <div class="kpi-label">Vendidas</div>
-        <div class="kpi-val" id="kpi-st-vendido">—</div>
-        <div class="kpi-sub">unidades colocadas</div>
-      </div>
     </div>
 
     <!-- Gráficos Ventas -->
@@ -742,15 +737,21 @@ function renderVentas() {
   document.getElementById('kpi-v-ticket').textContent    = fmt(ticket, MONEDA);
   document.getElementById('kpi-v-moneda-lbl').textContent = getMonedaLabel();
 
-  // Stock KPIs — solo disponibles y vendidos, sin separaciones
+  // Stock KPIs
+  // Disponible: "disponible", "bloqueado", "devuelto" (si fue revendido ya tendría otro estado)
+  // No disponible: cancelado, entregado, minuta, pagando, separacion
   const stockFiltrado = filtrarPorProyecto(DATA.stock);
-  const disponibles = stockFiltrado.filter(r => (r['Estado'] || '').toLowerCase().includes('disponib')).length;
-  const vendidos    = stockFiltrado.filter(r => (r['Estado'] || '').toLowerCase().includes('vendid')).length;
+
+  function esDisponible(estado) {
+    const e = (estado || '').toLowerCase().trim();
+    return e.includes('disponib') || e.includes('bloqueado') || e.includes('devuelt');
+  }
+
+  const disponibles = stockFiltrado.filter(r => esDisponible(r['Estado'])).length;
   const totalStock  = stockFiltrado.length;
 
   document.getElementById('kpi-st-total').textContent      = totalStock.toLocaleString('es-PE');
   document.getElementById('kpi-st-disponible').textContent = disponibles.toLocaleString('es-PE');
-  document.getElementById('kpi-st-vendido').textContent    = vendidos.toLocaleString('es-PE');
 
   // Chart: evolución monto mensual
   const porMes = agruparPorMes(datos, 'FechaVenta', r => campoPrecio(r));
@@ -794,9 +795,8 @@ function renderVentas() {
     options: CHART_OPTS_BAR
   });
 
-  // Chart: distribución stock — sin separaciones
-  const stockSinSep  = stockFiltrado.filter(r => !(r['Estado'] || '').toLowerCase().includes('separac'));
-  const estadosStock = agruparPorKey(stockSinSep, 'Estado', () => 1);
+  // Chart: distribución stock por estado
+  const estadosStock = agruparPorKey(stockFiltrado, 'Estado', () => 1);
   upsertChart('chart-st-estado', {
     type: 'doughnut',
     data: { labels: Object.keys(estadosStock), datasets: [{
