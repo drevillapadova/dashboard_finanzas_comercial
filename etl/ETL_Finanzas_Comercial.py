@@ -660,8 +660,21 @@ def main():
 
     try:
         robust_login(driver, wait)
+
         execute_stock_extraction(driver, wait)
+
+        # Cambiar dir de descarga a ventas antes de extraer ventas
+        driver.execute_cdp_cmd("Page.setDownloadBehavior", {
+            "behavior": "allow",
+            "downloadPath": os.path.abspath(DOWNLOAD_DIR_VENTAS)
+        })
         execute_ventas_extraction(driver, wait)
+
+        # Cambiar dir de descarga a flujo antes de extraer flujo
+        driver.execute_cdp_cmd("Page.setDownloadBehavior", {
+            "behavior": "allow",
+            "downloadPath": os.path.abspath(DOWNLOAD_DIR_FLUJO)
+        })
         execute_flujo_caja_extraction(driver, wait)
 
     except Exception as e:
