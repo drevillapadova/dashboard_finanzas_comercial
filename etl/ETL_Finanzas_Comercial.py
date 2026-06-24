@@ -700,9 +700,9 @@ def main():
 
     # Subir a Sheets
     upload_to_gsheets({
-        "VENTAS":           df_ventas,
-        "STOCK":            df_stock,
-        "INGRESO_DEPOSITO": df_flujo_caja,
+        "VENTAS":     df_ventas,
+        "STOCK":      df_stock,
+        "FLUJO_CAJA": df_flujo_caja,
     })
 
     print("\n" + "="*70)
