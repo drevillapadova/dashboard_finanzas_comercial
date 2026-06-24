@@ -1,10 +1,8 @@
 """
 ETL Finanzas-Comercial — Padova SAC
-Descarga 4 reportes de Evolta y los sube a Google Sheets:
+Descarga 2 reportes de Evolta y los sube a Google Sheets:
   - VENTAS
-  - STOCK (separaciones)
-  - INGRESO_DEPOSITO
-  - FLUJO_CAJA  ← nuevo
+  - FLUJO_CAJA
 
 Basado en ETL_Padova_MultiRol.py. Reutiliza misma lógica de
 login, descarga, tipo de cambio y upload a Sheets.
@@ -123,11 +121,9 @@ PASS_CRED = os.environ.get("EVOLTA_PASS", "")
 EMAIL_FROM = "sistema.padova@gmail.com"
 EMAIL_PASS = os.environ.get("EMAIL_PASS", "")
 
-URL_LOGIN                = "https://v4.evolta.pe/Login/Acceso/Index"
-URL_REPORTE_STOCK        = "https://v4.evolta.pe/Reportes/RepCargaStock/IndexNuevoRepStock"
-URL_REPORTE_VENTAS       = "https://v4.evolta.pe/Reportes/RepVenta/Index"
-URL_REPORTE_ING_DEPOSITO = "https://v4.evolta.pe/Reportes/RepIngresoxDeposito/Index"
-URL_REPORTE_FLUJO_CAJA   = "https://v4.evolta.pe/Reportes/RepFlujoCaga/Index"
+URL_LOGIN              = "https://v4.evolta.pe/Login/Acceso/Index"
+URL_REPORTE_VENTAS     = "https://v4.evolta.pe/Reportes/RepVenta/Index"
+URL_REPORTE_FLUJO_CAJA = "https://v4.evolta.pe/Reportes/RepFlujoCaga/Index"
 
 TARGET_PROJECTS = [
     'SUNNY', 'LITORAL 900', 'HELIO - SANTA BEATRIZ',
@@ -137,22 +133,18 @@ TARGET_PROJECTS = [
 IS_CLOUD = os.name != 'nt'
 
 if IS_CLOUD:
-    DOWNLOAD_DIR          = "/tmp/fc_stock"
-    DOWNLOAD_DIR_VENTAS   = "/tmp/fc_ventas"
-    DOWNLOAD_DIR_ING_DEP  = "/tmp/fc_ing_dep"
-    DOWNLOAD_DIR_FLUJO    = "/tmp/fc_flujo"
+    DOWNLOAD_DIR_VENTAS = "/tmp/fc_ventas"
+    DOWNLOAD_DIR_FLUJO  = "/tmp/fc_flujo"
 else:
-    DOWNLOAD_DIR          = r"C:\Users\MKT\Documents\EVOLTA\fc_stock"
-    DOWNLOAD_DIR_VENTAS   = r"C:\Users\MKT\Documents\EVOLTA\fc_ventas"
-    DOWNLOAD_DIR_ING_DEP  = r"C:\Users\MKT\Documents\EVOLTA\fc_ing_dep"
-    DOWNLOAD_DIR_FLUJO    = r"C:\Users\MKT\Documents\EVOLTA\fc_flujo"
+    DOWNLOAD_DIR_VENTAS = r"C:\Users\MKT\Documents\EVOLTA\fc_ventas"
+    DOWNLOAD_DIR_FLUJO  = r"C:\Users\MKT\Documents\EVOLTA\fc_flujo"
 
 # ⬇ Cambia este ID por el del nuevo Google Sheet que crees para este dashboard
 GSHEETS_SPREADSHEET_ID = os.environ.get("GSHEETS_SPREADSHEET_ID", "")
 
-AÑOS = [2024, 2025, 2026]
+AÑOS = [2023, 2024, 2025, 2026]
 
-for d in [DOWNLOAD_DIR, DOWNLOAD_DIR_VENTAS, DOWNLOAD_DIR_ING_DEP, DOWNLOAD_DIR_FLUJO]:
+for d in [DOWNLOAD_DIR_VENTAS, DOWNLOAD_DIR_FLUJO]:
     os.makedirs(d, exist_ok=True)
 
 
@@ -265,30 +257,6 @@ def _mover_descarga(archivo, destino):
 
 
 # ============================================================
-# EXTRACCIÓN — STOCK
-# ============================================================
-
-def execute_stock_extraction(driver, wait):
-    print("\n>> [STOCK] Descargando...")
-    driver.get(URL_REPORTE_STOCK)
-    time.sleep(3); dismiss_popup(driver)
-    try:
-        sel = wait.until(EC.presence_of_element_located((By.ID, "ProyectoId")))
-        try: Select(sel).select_by_visible_text("Todos")
-        except: Select(sel).select_by_index(0)
-    except: pass
-    existing = set(glob.glob(os.path.join(DOWNLOAD_DIR, "*.*")))
-    _click_exportar(driver, wait)
-    time.sleep(5)
-    archivo = esperar_descarga_nueva(DOWNLOAD_DIR, existing)
-    if archivo:
-        dest = os.path.join(DOWNLOAD_DIR, "ReporteStock.xlsx")
-        _mover_descarga(archivo, dest)
-    else:
-        print("   !! No se descargó stock")
-
-
-# ============================================================
 # EXTRACCIÓN — VENTAS (por año)
 # ============================================================
 
@@ -304,10 +272,10 @@ def execute_ventas_año(driver, wait, año):
         csv_radio = driver.find_element(By.XPATH, "//input[@type='radio'][@value='Csv' or @value='csv' or @value='CSV']")
         driver.execute_script("arguments[0].click();", csv_radio)
     except: pass
-    existing = set(glob.glob(os.path.join(DOWNLOAD_DIR, "*.*")))
+    existing = set(glob.glob(os.path.join(DOWNLOAD_DIR_VENTAS, "*.*")))
     _click_exportar(driver, wait)
     time.sleep(5)
-    archivo = esperar_descarga_nueva(DOWNLOAD_DIR, existing, timeout=120)
+    archivo = esperar_descarga_nueva(DOWNLOAD_DIR_VENTAS, existing, timeout=120)
     if archivo:
         ext = os.path.splitext(archivo)[1].lower()
         dest = os.path.join(DOWNLOAD_DIR_VENTAS, f"ReporteVenta{año}{ext}")
@@ -327,47 +295,7 @@ def execute_ventas_extraction(driver, wait):
 
 
 # ============================================================
-# EXTRACCIÓN — INGRESO POR DEPÓSITO (por año)
-# ============================================================
-
-def execute_ing_deposito_año(driver, wait, año):
-    print(f"\n>> [INGRESO_DEPOSITO {año}]")
-    driver.get(URL_REPORTE_ING_DEPOSITO)
-    time.sleep(4); dismiss_popup(driver)
-    # Seleccionar VENTA en Etapa Comercial si existe
-    try:
-        for sel in driver.find_elements(By.TAG_NAME, "select"):
-            opts = [o.text.strip().upper() for o in sel.find_elements(By.TAG_NAME, "option")]
-            if "VENTA" in opts:
-                Select(sel).select_by_visible_text("VENTA"); time.sleep(0.5); break
-    except: pass
-    fecha_inicio = f"01/01/{año}"
-    fecha_fin = f"31/12/{año}" if año < datetime.now().year else datetime.now().strftime("%d/%m/%Y")
-    _set_fechas_js(driver, fecha_inicio, fecha_fin)
-    existing = set(glob.glob(os.path.join(DOWNLOAD_DIR, "*.*")))
-    _click_exportar(driver, wait)
-    time.sleep(5)
-    archivo = esperar_descarga_nueva(DOWNLOAD_DIR, existing, timeout=480)
-    if archivo:
-        ext = os.path.splitext(archivo)[1].lower()
-        dest = os.path.join(DOWNLOAD_DIR_ING_DEP, f"ReporteIngresoDeposito{año}{ext}")
-        _mover_descarga(archivo, dest)
-    else:
-        print(f"   !! No se descargó ingreso_deposito {año}")
-
-def execute_ing_deposito_extraction(driver, wait):
-    print("\n" + "="*60)
-    print(">> [INGRESO_DEPOSITO] Iniciando descarga por año")
-    for f in glob.glob(os.path.join(DOWNLOAD_DIR_ING_DEP, "*.*")):
-        try: os.remove(f)
-        except: pass
-    for año in AÑOS:
-        try: execute_ing_deposito_año(driver, wait, año); time.sleep(2)
-        except Exception as e: print(f"   !! Error ing_deposito {año}: {e}")
-
-
-# ============================================================
-# EXTRACCIÓN — FLUJO DE CAJA (por año)  ← NUEVO
+# EXTRACCIÓN — FLUJO DE CAJA (por año)
 # ============================================================
 
 def execute_flujo_caja_año(driver, wait, año):
@@ -398,10 +326,10 @@ def execute_flujo_caja_año(driver, wait, año):
     fecha_fin = f"31/12/{año}" if año < datetime.now().year else datetime.now().strftime("%d/%m/%Y")
     _set_fechas_js(driver, fecha_inicio, fecha_fin)
 
-    existing = set(glob.glob(os.path.join(DOWNLOAD_DIR, "*.*")))
+    existing = set(glob.glob(os.path.join(DOWNLOAD_DIR_FLUJO, "*.*")))
     _click_exportar(driver, wait)
     time.sleep(5)
-    archivo = esperar_descarga_nueva(DOWNLOAD_DIR, existing, timeout=480)
+    archivo = esperar_descarga_nueva(DOWNLOAD_DIR_FLUJO, existing, timeout=480)
     if archivo:
         ext = os.path.splitext(archivo)[1].lower()
         dest = os.path.join(DOWNLOAD_DIR_FLUJO, f"ReporteFlujoCaja{año}{ext}")
@@ -451,10 +379,9 @@ def _filtrar_proyectos(df, col='Proyecto'):
 
 # ============================================================
 # TRANSFORMACIÓN — VENTAS
-# (reutiliza lógica de dashboard_separacionesyventas)
 # ============================================================
 
-def process_ventas(df_stock_crudo=None):
+def process_ventas():
     print("\n>> [TRANSFORM VENTAS]")
     df = _leer_por_año(DOWNLOAD_DIR_VENTAS, "ReporteVenta", AÑOS)
     if df is None: return None
@@ -473,52 +400,7 @@ def process_ventas(df_stock_crudo=None):
 
 
 # ============================================================
-# TRANSFORMACIÓN — STOCK (separaciones)
-# ============================================================
-
-def process_stock():
-    print("\n>> [TRANSFORM STOCK]")
-    archivos = glob.glob(os.path.join(DOWNLOAD_DIR, "*.xlsx"))
-    if not archivos: return None
-    df = pd.read_excel(max(archivos, key=os.path.getctime))
-    df.columns = df.columns.str.strip()
-    df = _filtrar_proyectos(df)
-
-    col_precio = next((c for c in ['PrecioVenta', 'PrecioLista'] if c in df.columns), None)
-    col_moneda = 'Moneda' if 'Moneda' in df.columns else None
-    col_fecha  = next((c for c in ['FechaSepDefinitiva', 'FechaVenta'] if c in df.columns), None)
-
-    if col_precio and col_moneda:
-        df = convertir_monedas(df, col_precio, col_moneda, col_fecha)
-
-    print(f"   -> STOCK procesado: {len(df):,} filas")
-    return df
-
-
-# ============================================================
-# TRANSFORMACIÓN — INGRESO DEPÓSITO
-# ============================================================
-
-def process_ing_deposito():
-    print("\n>> [TRANSFORM INGRESO_DEPOSITO]")
-    df = _leer_por_año(DOWNLOAD_DIR_ING_DEP, "ReporteIngresoDeposito", AÑOS)
-    if df is None: return None
-    df = _filtrar_proyectos(df)
-
-    # Detectar columnas de monto y moneda dinámicamente
-    col_monto  = next((c for c in df.columns if 'monto' in c.lower() or 'importe' in c.lower()), None)
-    col_moneda = next((c for c in df.columns if 'moneda' in c.lower() or 'tipo' in c.lower()), None)
-    col_fecha  = next((c for c in df.columns if 'fecha' in c.lower()), None)
-
-    if col_monto and col_moneda:
-        df = convertir_monedas(df, col_monto, col_moneda, col_fecha)
-
-    print(f"   -> INGRESO_DEPOSITO procesado: {len(df):,} filas")
-    return df
-
-
-# ============================================================
-# TRANSFORMACIÓN — FLUJO DE CAJA  ← NUEVO
+# TRANSFORMACIÓN — FLUJO DE CAJA
 # ============================================================
 
 def process_flujo_caja():
@@ -580,7 +462,7 @@ def _clean_df(df):
 
 def upload_to_gsheets(dfs: dict):
     """
-    dfs: {'VENTAS': df, 'STOCK': df, 'INGRESO_DEPOSITO': df, 'FLUJO_CAJA': df}
+    dfs: {'VENTAS': df, 'FLUJO_CAJA': df}
     """
     print("\n>> [GOOGLE SHEETS] Subiendo datos...")
     try:
@@ -616,27 +498,12 @@ def main():
     print(f"   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*70)
 
-    # Limpiar stock temp
-    for f in glob.glob(os.path.join(DOWNLOAD_DIR, "*.xlsx")):
-        try: os.remove(f)
-        except: pass
-
-    driver = get_driver(DOWNLOAD_DIR)
+    driver = get_driver(DOWNLOAD_DIR_VENTAS)
     wait   = WebDriverWait(driver, 30)
 
     try:
         robust_login(driver, wait)
-
-        execute_stock_extraction(driver, wait)
-
-        # Cambiar dir de descarga para los reportes por año
-        driver.execute_cdp_cmd("Page.setDownloadBehavior", {
-            "behavior": "allow",
-            "downloadPath": os.path.abspath(DOWNLOAD_DIR)
-        })
-
         execute_ventas_extraction(driver, wait)
-        execute_ing_deposito_extraction(driver, wait)
         execute_flujo_caja_extraction(driver, wait)
 
     except Exception as e:
@@ -645,17 +512,13 @@ def main():
         driver.quit()
 
     # Transformar
-    df_stock       = process_stock()
-    df_ventas      = process_ventas(df_stock)
-    df_ing_dep     = process_ing_deposito()
-    df_flujo_caja  = process_flujo_caja()
+    df_ventas     = process_ventas()
+    df_flujo_caja = process_flujo_caja()
 
     # Subir a Sheets
     upload_to_gsheets({
-        "VENTAS":           df_ventas,
-        "STOCK":            df_stock,
-        "INGRESO_DEPOSITO": df_ing_dep,
-        "FLUJO_CAJA":       df_flujo_caja,
+        "VENTAS":     df_ventas,
+        "FLUJO_CAJA": df_flujo_caja,
     })
 
     print("\n" + "="*70)
