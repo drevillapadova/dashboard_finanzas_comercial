@@ -43,6 +43,44 @@ def _fetch_tc_bcrp(fecha_str):
             return float(periodos[0]["values"][0])
     except: return None
 
+def precargar_tc_rango(año_ini=2023):
+    """
+    Pre-carga el cache de TC con UNA sola llamada al BCRP para todo el rango.
+    Evita hacer cientos de requests individuales al procesar cada fila del df.
+    """
+    from datetime import date
+    fecha_ini = f"{año_ini}-01-01"
+    fecha_fin = date.today().strftime("%Y-%m-%d")
+    MESES = {'Ene':'01','Feb':'02','Mar':'03','Abr':'04','May':'05','Jun':'06',
+             'Jul':'07','Ago':'08','Sep':'09','Oct':'10','Nov':'11','Dic':'12'}
+    try:
+        url = (f"https://estadisticas.bcrp.gob.pe/estadisticas/series/api/"
+               f"PD04637PD/json/{fecha_ini}/{fecha_fin}/ing")
+        r = requests.get(url, timeout=60)
+        data = json.loads(r.content.decode('utf-8-sig'))
+        cargados = 0
+        for p in data.get("periods", []):
+            nombre = p.get("name", "")   # formato "31.Dic.23"
+            valor  = p.get("values", [None])[0]
+            if not nombre or not valor: continue
+            try:
+                partes = nombre.split(".")
+                if len(partes) == 3:
+                    dd, mmm, yy = partes
+                    mm = MESES.get(mmm)
+                    if mm:
+                        yyyy = f"20{yy}" if int(yy) < 50 else f"19{yy}"
+                        key  = f"{yyyy}-{mm}-{dd.zfill(2)}"
+                        _TC_CACHE[key] = round(float(valor), 2)
+                        cargados += 1
+            except: pass
+        print(f"   -> [TC] Pre-cargados {cargados} TCs en 1 llamada ({fecha_ini} → {fecha_fin})")
+        return cargados
+    except Exception as e:
+        print(f"   -> [TC] Error pre-cargando rango: {e} (se usará fetch por fila como respaldo)")
+        return 0
+
+
 def get_tipo_cambio(fecha=None):
     TC_RESPALDO = 3.75
     import pandas as _pd
@@ -613,6 +651,9 @@ def main():
     print("   ETL FINANZAS-COMERCIAL — PADOVA SAC")
     print(f"   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*70)
+
+    # Pre-cargar TCs 2023→hoy en una sola llamada (evita ~1000 requests individuales)
+    precargar_tc_rango(año_ini=min(AÑOS))
 
     driver = get_driver(DOWNLOAD_DIR_STOCK)
     wait   = WebDriverWait(driver, 30)
