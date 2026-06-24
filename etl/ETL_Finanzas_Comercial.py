@@ -1,7 +1,8 @@
 """
 ETL Finanzas-Comercial — Padova SAC
-Descarga 2 reportes de Evolta y los sube a Google Sheets:
+Descarga 3 reportes de Evolta y los sube a Google Sheets:
   - VENTAS
+  - STOCK
   - FLUJO_CAJA
 
 Basado en ETL_Padova_MultiRol.py. Reutiliza misma lógica de
@@ -122,6 +123,7 @@ EMAIL_FROM = "sistema.padova@gmail.com"
 EMAIL_PASS = os.environ.get("EMAIL_PASS", "")
 
 URL_LOGIN              = "https://v4.evolta.pe/Login/Acceso/Index"
+URL_REPORTE_STOCK      = "https://v4.evolta.pe/Reportes/RepCargaStock/IndexNuevoRepStock"
 URL_REPORTE_VENTAS     = "https://v4.evolta.pe/Reportes/RepVenta/Index"
 URL_REPORTE_FLUJO_CAJA = "https://v4.evolta.pe/Reportes/RepFlujoCaga/Index"
 
@@ -133,9 +135,11 @@ TARGET_PROJECTS = [
 IS_CLOUD = os.name != 'nt'
 
 if IS_CLOUD:
+    DOWNLOAD_DIR_STOCK  = "/tmp/fc_stock"
     DOWNLOAD_DIR_VENTAS = "/tmp/fc_ventas"
     DOWNLOAD_DIR_FLUJO  = "/tmp/fc_flujo"
 else:
+    DOWNLOAD_DIR_STOCK  = r"C:\Users\MKT\Documents\EVOLTA\fc_stock"
     DOWNLOAD_DIR_VENTAS = r"C:\Users\MKT\Documents\EVOLTA\fc_ventas"
     DOWNLOAD_DIR_FLUJO  = r"C:\Users\MKT\Documents\EVOLTA\fc_flujo"
 
@@ -144,7 +148,7 @@ GSHEETS_SPREADSHEET_ID = os.environ.get("GSHEETS_SPREADSHEET_ID", "")
 
 AÑOS = [2023, 2024, 2025, 2026]
 
-for d in [DOWNLOAD_DIR_VENTAS, DOWNLOAD_DIR_FLUJO]:
+for d in [DOWNLOAD_DIR_STOCK, DOWNLOAD_DIR_VENTAS, DOWNLOAD_DIR_FLUJO]:
     os.makedirs(d, exist_ok=True)
 
 
@@ -254,6 +258,42 @@ def _mover_descarga(archivo, destino):
     if os.path.exists(destino): os.remove(destino)
     shutil.move(archivo, destino)
     print(f"   -> [OK] {os.path.basename(destino)}")
+
+
+# ============================================================
+# EXTRACCIÓN — STOCK
+# ============================================================
+
+def execute_stock_extraction(driver, wait):
+    print(f"\n>> [STOCK] Descargando...")
+    driver.get(URL_REPORTE_STOCK)
+    time.sleep(3); dismiss_popup(driver)
+    try:
+        try: sel = wait.until(EC.presence_of_element_located((By.ID, "ProyectoId")))
+        except: sel = driver.find_element(By.TAG_NAME, "select")
+        try: Select(sel).select_by_visible_text("Todos")
+        except:
+            try: Select(sel).select_by_visible_text("TODOS")
+            except: Select(sel).select_by_index(0)
+        time.sleep(1)
+    except Exception as e:
+        print(f"   !! Warning selector: {e}")
+
+    # Limpiar descargas previas antes de medir nuevas
+    for f in glob.glob(os.path.join(DOWNLOAD_DIR_STOCK, "*.xlsx")):
+        try: os.remove(f)
+        except: pass
+
+    existing = set(glob.glob(os.path.join(DOWNLOAD_DIR_STOCK, "*.*")))
+    export_btn = wait.until(EC.element_to_be_clickable((By.ID, "btnExportar")))
+    driver.execute_script("arguments[0].click();", export_btn)
+
+    archivo = esperar_descarga_nueva(DOWNLOAD_DIR_STOCK, existing, timeout=480)
+    if not archivo:
+        print("   !! No se descargó stock"); return None
+    dest = os.path.join(DOWNLOAD_DIR_STOCK, "ReporteStock.xlsx")
+    _mover_descarga(archivo, dest)
+    return dest
 
 
 # ============================================================
@@ -378,10 +418,83 @@ def _filtrar_proyectos(df, col='Proyecto'):
 
 
 # ============================================================
+# CORRECCIÓN MONEDA (stock como fuente de verdad)
+# ============================================================
+
+def corregir_moneda_con_stock(df_ventas, df_stock):
+    """Corrige TipoMoneda en ventas usando el stock como referencia.
+    Evolta a veces exporta la moneda equivocada en el reporte de ventas."""
+    if df_stock is None or len(df_stock) == 0: return df_ventas
+    df_stock = df_stock.copy()
+    df_stock.columns = df_stock.columns.str.strip()
+    col_proy_s   = next((c for c in df_stock.columns if c.strip() == 'Proyecto'), None)
+    col_nro_s    = next((c for c in df_stock.columns if c.strip() == 'NroInmuebleActual'), None) \
+                or next((c for c in df_stock.columns if 'NroInmueble' in c), None)
+    col_moneda_s = next((c for c in df_stock.columns if c.strip() == 'Moneda'), None)
+    if not col_proy_s or not col_nro_s or not col_moneda_s: return df_ventas
+
+    def norm_nro(v):
+        s = str(v).strip()
+        if s.endswith('.0'): s = s[:-2]
+        return s.upper()
+
+    lookup = {}
+    for _, row in df_stock.iterrows():
+        proy = str(row[col_proy_s]).strip().upper()
+        nro  = norm_nro(row[col_nro_s])
+        mon  = str(row[col_moneda_s]).strip().upper()
+        if proy and nro and nro not in ('', 'NAN', 'NONE'):
+            lookup[(proy, nro)] = mon
+    print(f"   -> [MONEDA] Lookup stock: {len(lookup)} unidades")
+
+    col_proy_v   = 'Proyecto'   if 'Proyecto'   in df_ventas.columns else None
+    col_nro_v    = 'NroInmueble' if 'NroInmueble' in df_ventas.columns else None
+    col_moneda_v = 'TipoMoneda' if 'TipoMoneda'  in df_ventas.columns else None
+    if not col_proy_v or not col_nro_v or not col_moneda_v: return df_ventas
+
+    df_ventas = df_ventas.copy()
+    corregidos = 0
+    for idx, row in df_ventas.iterrows():
+        moneda_v = str(row[col_moneda_v]).upper().strip()
+        if 'DOLAR' not in moneda_v and 'USD' not in moneda_v: continue
+        proy_v = str(row[col_proy_v]).strip().upper()
+        nro_v  = norm_nro(row[col_nro_v])
+        moneda_stock = lookup.get((proy_v, nro_v))
+        if moneda_stock and 'DOLAR' not in moneda_stock and 'USD' not in moneda_stock:
+            df_ventas.at[idx, col_moneda_v] = moneda_stock
+            corregidos += 1
+    print(f"   -> [MONEDA] Corregidos: {corregidos} registros")
+    return df_ventas
+
+
+# ============================================================
+# TRANSFORMACIÓN — STOCK
+# ============================================================
+
+def process_stock():
+    print("\n>> [TRANSFORM STOCK]")
+    archivos = glob.glob(os.path.join(DOWNLOAD_DIR_STOCK, "*.xlsx"))
+    if not archivos: return None
+    df = pd.read_excel(max(archivos, key=os.path.getctime))
+    df.columns = df.columns.str.strip()
+    df = _filtrar_proyectos(df)
+
+    col_precio = next((c for c in ['PrecioVenta', 'PrecioLista'] if c in df.columns), None)
+    col_moneda = 'Moneda' if 'Moneda' in df.columns else None
+    col_fecha  = next((c for c in ['FechaSepDefinitiva', 'FechaVenta'] if c in df.columns), None)
+
+    if col_precio and col_moneda:
+        df = convertir_monedas(df, col_precio, col_moneda, col_fecha)
+
+    print(f"   -> STOCK procesado: {len(df):,} filas")
+    return df
+
+
+# ============================================================
 # TRANSFORMACIÓN — VENTAS
 # ============================================================
 
-def process_ventas():
+def process_ventas(df_stock_crudo=None):
     print("\n>> [TRANSFORM VENTAS]")
     df = _leer_por_año(DOWNLOAD_DIR_VENTAS, "ReporteVenta", AÑOS)
     if df is None: return None
@@ -391,6 +504,9 @@ def process_ventas():
     col_fecha = next((c for c in ['FechaVenta', 'FechaEntrega_Minuta'] if c in df.columns), None)
     col_moneda = 'TipoMoneda' if 'TipoMoneda' in df.columns else None
     col_precio = 'PrecioVenta' if 'PrecioVenta' in df.columns else None
+
+    if df_stock_crudo is not None and col_moneda:
+        df = corregir_moneda_con_stock(df, df_stock_crudo)
 
     if col_precio and col_moneda:
         df = convertir_monedas(df, col_precio, col_moneda, col_fecha)
@@ -462,7 +578,7 @@ def _clean_df(df):
 
 def upload_to_gsheets(dfs: dict):
     """
-    dfs: {'VENTAS': df, 'FLUJO_CAJA': df}
+    dfs: {'VENTAS': df, 'STOCK': df, 'FLUJO_CAJA': df}
     """
     print("\n>> [GOOGLE SHEETS] Subiendo datos...")
     try:
@@ -498,11 +614,12 @@ def main():
     print(f"   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*70)
 
-    driver = get_driver(DOWNLOAD_DIR_VENTAS)
+    driver = get_driver(DOWNLOAD_DIR_STOCK)
     wait   = WebDriverWait(driver, 30)
 
     try:
         robust_login(driver, wait)
+        execute_stock_extraction(driver, wait)
         execute_ventas_extraction(driver, wait)
         execute_flujo_caja_extraction(driver, wait)
 
@@ -511,13 +628,26 @@ def main():
     finally:
         driver.quit()
 
+    # Leer stock crudo para corregir moneda en ventas
+    df_stock_crudo = None
+    try:
+        archivos = glob.glob(os.path.join(DOWNLOAD_DIR_STOCK, "*.xlsx"))
+        if archivos:
+            df_stock_crudo = pd.read_excel(max(archivos, key=os.path.getctime))
+            df_stock_crudo.columns = df_stock_crudo.columns.str.strip()
+            print(f"\n>> [MONEDA] Stock crudo cargado: {len(df_stock_crudo):,} filas")
+    except Exception as e:
+        print(f"!! Warning stock crudo: {e}")
+
     # Transformar
-    df_ventas     = process_ventas()
+    df_stock      = process_stock()
+    df_ventas     = process_ventas(df_stock_crudo)
     df_flujo_caja = process_flujo_caja()
 
     # Subir a Sheets
     upload_to_gsheets({
         "VENTAS":     df_ventas,
+        "STOCK":      df_stock,
         "FLUJO_CAJA": df_flujo_caja,
     })
 
