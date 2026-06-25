@@ -743,10 +743,13 @@ function renderVentas() {
   document.getElementById('kpi-v-ticket').textContent    = fmt(ticket, MONEDA);
   document.getElementById('kpi-v-moneda-lbl').textContent = getMonedaLabel();
 
-  // Stock KPIs
+  // Stock KPIs — excluir DEVUELTA del total, disponible = solo DISPONIBLE
   const stockFiltrado = filtrarPorProyecto(DATA.stock);
-  const totalStock    = stockFiltrado.length;
-  const disponibles   = stockFiltrado.filter(r =>
+  const stockActivo   = stockFiltrado.filter(r =>
+    !(r['Estado'] || '').toLowerCase().trim().includes('devuelt')
+  );
+  const totalStock  = stockActivo.length;
+  const disponibles = stockActivo.filter(r =>
     (r['Estado'] || '').toLowerCase().trim().includes('disponib')
   ).length;
 
@@ -754,14 +757,14 @@ function renderVentas() {
   document.getElementById('kpi-st-disponible').textContent = disponibles.toLocaleString('es-PE');
 
   // Stock por tipo (Depa, Estac., Azotea, Depósito, etc.)
-  const tipoColSt = stockFiltrado[0]
-    ? Object.keys(stockFiltrado[0]).find(k => /^tipo/i.test(k))
+  const tipoColSt = stockActivo[0]
+    ? Object.keys(stockActivo[0]).find(k => /^tipo/i.test(k))
     : null;
   const tiposCont = document.getElementById('stock-tipos');
   if (tiposCont) {
-    if (tipoColSt && stockFiltrado.length) {
+    if (tipoColSt && stockActivo.length) {
       const tipoMap = {};
-      stockFiltrado.forEach(r => {
+      stockActivo.forEach(r => {
         const t = (r[tipoColSt] || '').trim() || 'Sin tipo';
         if (!tipoMap[t]) tipoMap[t] = { total: 0, disp: 0 };
         tipoMap[t].total++;
