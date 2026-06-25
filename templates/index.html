@@ -627,17 +627,21 @@ function filtrarPorProyecto(arr) {
   return arr.filter(r => (r['Proyecto'] || '').trim().toUpperCase() === p.toUpperCase());
 }
 
+function _getTipoCol(row) {
+  if (!row) return null;
+  const keys = Object.keys(row);
+  // exacto primero, luego _1 (ventas usa TipoInmueble_1)
+  return keys.find(k => k.toLowerCase() === 'tipoinmueble')
+      || keys.find(k => k.toLowerCase() === 'tipoinmueble_1')
+      || keys.find(k => ['tipounidad','tipoproducto','producto'].includes(k.toLowerCase()));
+}
+
 function filtrarPorTipo(arr) {
-  const t = document.getElementById('filtro-tipo').value;
+  const t = (document.getElementById('filtro-tipo').value || '').trim();
   if (!t) return arr;
-  // detecta columna tipo dinámicamente
-  const muestra = arr[0];
-  if (!muestra) return arr;
-  const col = Object.keys(muestra).find(k =>
-    ['tipo','tipounidad','tipoproducto','tipoinmueble','producto'].includes(k.toLowerCase())
-  );
+  const col = _getTipoCol(arr[0]);
   if (!col) return arr;
-  return arr.filter(r => (r[col] || '').toUpperCase() === t.toUpperCase());
+  return arr.filter(r => (r[col] || '').trim().toUpperCase() === t.toUpperCase());
 }
 
 function aplicarFiltros(arr, campoFecha) {
@@ -716,9 +720,8 @@ function poblarFiltroProyecto() {
 
 function poblarFiltroTipo() {
   const tipos = new Set();
-  const colRegex = /^(tipo|tipounidad|tipoproducto|tipoinmueble|producto)$/i;
   [...DATA.ventas, ...DATA.stock].forEach(r => {
-    const col = Object.keys(r).find(k => colRegex.test(k));
+    const col = _getTipoCol(r);
     if (col && r[col] && r[col].trim()) tipos.add(r[col].trim());
   });
   const sel = document.getElementById('filtro-tipo');
@@ -757,9 +760,7 @@ function renderVentas() {
   document.getElementById('kpi-st-disponible').textContent = disponibles.toLocaleString('es-PE');
 
   // Stock por tipo (Depa, Estac., Azotea, Depósito, etc.)
-  const tipoColSt = stockActivo[0]
-    ? Object.keys(stockActivo[0]).find(k => /^tipo/i.test(k))
-    : null;
+  const tipoColSt = _getTipoCol(stockActivo[0]);
   const tiposCont = document.getElementById('stock-tipos');
   if (tiposCont) {
     if (tipoColSt && stockActivo.length) {
