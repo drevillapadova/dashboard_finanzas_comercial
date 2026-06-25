@@ -431,6 +431,8 @@
         <div class="kpi-sub">para la venta</div>
       </div>
     </div>
+    <!-- Stock por tipo -->
+    <div id="stock-tipos" class="kpi-row" style="margin-top:0"></div>
 
     <!-- Gráficos Ventas -->
     <div class="charts-grid">
@@ -742,20 +744,41 @@ function renderVentas() {
   document.getElementById('kpi-v-moneda-lbl').textContent = getMonedaLabel();
 
   // Stock KPIs
-  // Disponible: "disponible", "bloqueado", "devuelto" (si fue revendido ya tendría otro estado)
-  // No disponible: cancelado, entregado, minuta, pagando, separacion
   const stockFiltrado = filtrarPorProyecto(DATA.stock);
-
-  function esDisponible(estado) {
-    const e = (estado || '').toLowerCase().trim();
-    return e.includes('disponib') || e.includes('bloqueado') || e.includes('devuelt');
-  }
-
-  const disponibles = stockFiltrado.filter(r => esDisponible(r['Estado'])).length;
-  const totalStock  = stockFiltrado.length;
+  const totalStock    = stockFiltrado.length;
+  const disponibles   = stockFiltrado.filter(r =>
+    (r['Estado'] || '').toLowerCase().trim().includes('disponib')
+  ).length;
 
   document.getElementById('kpi-st-total').textContent      = totalStock.toLocaleString('es-PE');
   document.getElementById('kpi-st-disponible').textContent = disponibles.toLocaleString('es-PE');
+
+  // Stock por tipo (Depa, Estac., Azotea, Depósito, etc.)
+  const tipoColSt = stockFiltrado[0]
+    ? Object.keys(stockFiltrado[0]).find(k => /^tipo/i.test(k))
+    : null;
+  const tiposCont = document.getElementById('stock-tipos');
+  if (tiposCont) {
+    if (tipoColSt && stockFiltrado.length) {
+      const tipoMap = {};
+      stockFiltrado.forEach(r => {
+        const t = (r[tipoColSt] || '').trim() || 'Sin tipo';
+        if (!tipoMap[t]) tipoMap[t] = { total: 0, disp: 0 };
+        tipoMap[t].total++;
+        if ((r['Estado'] || '').toLowerCase().trim().includes('disponib')) tipoMap[t].disp++;
+      });
+      tiposCont.innerHTML = Object.entries(tipoMap)
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([tipo, v]) => `
+          <div class="kpi-card">
+            <div class="kpi-label">${tipo}</div>
+            <div class="kpi-val">${v.total}</div>
+            <div class="kpi-sub">${v.disp} disponibles</div>
+          </div>`).join('');
+    } else {
+      tiposCont.innerHTML = '';
+    }
+  }
 
   // Chart: evolución monto mensual
   const porMes = agruparPorMes(datos, 'FechaVenta', r => campoPrecio(r));
