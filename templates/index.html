@@ -540,7 +540,8 @@ async function loadData() {
     const r    = await fetch('/api/data');
     const json = await r.json();
     const normProy = arr => arr.map(r => r['Proyecto'] ? {...r, Proyecto: r['Proyecto'].trim()} : r);
-    DATA.ventas       = normProy(csvToObjects(json.ventas || []));
+    const allVentas = normProy(csvToObjects(json.ventas || []));
+    DATA.ventas       = allVentas.filter(r => (r['EstadoOC'] || '').trim().toLowerCase() === 'activo');
     DATA.stock        = normProy(csvToObjects(json.stock  || []));
     DATA.ing_deposito = csvToObjects(json.ing_deposito || []);
     document.getElementById('ultima-actualizacion').textContent =
