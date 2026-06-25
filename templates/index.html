@@ -616,16 +616,12 @@ function filtrarPorFecha(arr, campoFecha) {
   });
 }
 
-function normProy(s) {
-  return (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-}
 function filtrarPorProyecto(arr) {
   const p = document.getElementById('filtro-proyecto').value;
   if (!p) return arr;
-  const pNorm = normProy(p);
   const tieneProyecto = arr.some(r => r['Proyecto'] && r['Proyecto'].trim());
   if (!tieneProyecto) return arr;
-  return arr.filter(r => normProy(r['Proyecto']) === pNorm);
+  return arr.filter(r => (r['Proyecto'] || '').trim().toUpperCase() === p.trim().toUpperCase());
 }
 
 function filtrarPorTipo(arr) {
@@ -702,7 +698,7 @@ function tablaHTML(data, cols) {
 // ── Filtros proyecto y tipo ──────────────────────────────────
 function poblarFiltroProyecto() {
   const proyectos = new Set();
-  [...DATA.ventas, ...DATA.stock].forEach(r => { if (r['Proyecto'] && r['Proyecto'].trim()) proyectos.add(r['Proyecto'].trim().toUpperCase()); });
+  [...DATA.ventas, ...DATA.stock].forEach(r => { if (r['Proyecto'] && r['Proyecto'].trim()) proyectos.add(r['Proyecto'].trim()); });
   const sel = document.getElementById('filtro-proyecto');
   sel.innerHTML = '<option value="">Todos</option>';
   [...proyectos].sort().forEach(p => {
