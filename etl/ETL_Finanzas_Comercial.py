@@ -449,23 +449,10 @@ def _leer_por_año(directorio, prefijo, años):
     return pd.concat(dfs, ignore_index=True) if dfs else None
 
 
-import re as _re
-
-def _norm_proy(s):
-    return _re.sub(r'[^A-Z0-9]', '', str(s).upper())
-
-_TARGET_NORM = [_norm_proy(t) for t in TARGET_PROJECTS]
-
 def _filtrar_proyectos(df, col='Proyecto'):
-    if col not in df.columns:
-        return df
-    def _match(val):
-        v = _norm_proy(val)
-        return any(v == tp or tp in v or v in tp for tp in _TARGET_NORM)
-    mask = df[col].apply(_match)
-    kept = mask.sum()
-    print(f"   -> [FILTRO] {kept} filas de proyectos objetivo (de {len(df)} total)")
-    return df[mask]
+    if col in df.columns:
+        return df[df[col].str.upper().isin(TARGET_PROJECTS)]
+    return df
 
 
 # ============================================================
