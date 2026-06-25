@@ -29,9 +29,9 @@ def leer_tab(tab_name):
         resp.raise_for_status()
         resp.encoding = "utf-8"
         df = pd.read_csv(io.StringIO(resp.text), low_memory=False)
-        records = df.fillna("").astype(str).to_dict('records')
-        print(f"   -> {tab_name}: {len(records):,} filas")
-        return records
+        rows = [df.columns.tolist()] + df.fillna("").astype(str).values.tolist()
+        print(f"   -> {tab_name}: {len(rows)-1:,} filas")
+        return rows
     except Exception as e:
         print(f"   !! Error leyendo {tab_name}: {e}")
         return []
