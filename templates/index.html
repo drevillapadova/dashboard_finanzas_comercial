@@ -643,6 +643,13 @@ function _getTipoCol(row) {
 function filtrarPorTipo(arr) {
   const t = (document.getElementById('filtro-tipo').value || '').trim();
   if (!t) return arr;
+  if (!arr.length) return arr;
+  // Ventas: tiene TipoInmueble_1..N → buscar en todas las columnas tipo
+  const allTipoCols = Object.keys(arr[0]).filter(k => /^tipoinmueble_\d+$/i.test(k));
+  if (allTipoCols.length > 0) {
+    return arr.filter(r => allTipoCols.some(c => (r[c] || '').trim().toUpperCase() === t.toUpperCase()));
+  }
+  // Stock: tiene TipoInmueble exacto
   const col = _getTipoCol(arr[0]);
   if (!col) return arr;
   return arr.filter(r => (r[col] || '').trim().toUpperCase() === t.toUpperCase());
