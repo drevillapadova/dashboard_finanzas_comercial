@@ -591,18 +591,12 @@ function getMonedaLabel() {
 }
 
 function campoPrecio(row) {
-  const cols = Object.keys(row).filter(k => /^tipoinmueble_\d+$/i.test(k));
-  let s = 0, d = 0;
-  cols.forEach(tiCol => {
-    const n = tiCol.match(/\d+$/)[0];
-    const precio = parseFloat(row[`TotalLista_${n}`]) || 0;
-    if (!precio) return;
-    const mon = (row[`T/M_${n}`] || '').trim().toUpperCase();
-    const esUSD = mon.includes('DOL') || mon.includes('USD') || mon === 'D' || mon === '$';
-    if (esUSD) d += precio; else s += precio;
-  });
-  if (MONEDA === 'dolares') return d + s / FX;
-  return s + d * FX; // soles y original: equivalente en soles
+  if (MONEDA === 'dolares') return parseFloat(row['PrecioDolares']) || 0;
+  return parseFloat(row['PrecioSoles']) || 0;
+}
+
+function _esUSD(row) {
+  return (row['TipoMoneda'] || '').toLowerCase().includes('dolar');
 }
 
 // Detecta el nombre de columna buscando patrones (case-insensitive)
@@ -793,23 +787,25 @@ function renderVentas() {
     unidades = Object.values(tipoMapV).reduce((s, n) => s + n, 0) || datos.length;
   }
 
-  // DEBUG temporal: ver valores únicos de TipoMoneda
-  const tmSet = new Set(datosSinTipo.map(r => (r['TipoMoneda'] || '').trim()));
-  console.log('[DEBUG TipoMoneda] ' + JSON.stringify([...tmSet]));
-
-  // Monto split soles/dólares usando TotalLista_N (por unidad, filtrando por tipo si aplica)
+  // Monto split soles/dólares usando TipoMoneda (transacción) + TotalLista_N (por unidad)
   let montoS = 0, montoD = 0;
-  datosSinTipo.forEach(r => {
-    tipoNumCols.forEach(tiCol => {
-      if (tipoSel && (r[tiCol] || '').trim().toUpperCase() !== tipoSel.toUpperCase()) return;
-      const n = tiCol.match(/\d+$/)[0];
-      const precio = parseFloat(r[`TotalLista_${n}`]) || 0;
-      if (!precio) return;
-      const mon = (r[`T/M_${n}`] || '').trim().toUpperCase();
-      const esUSD = mon.includes('DOL') || mon.includes('USD') || mon === 'D' || mon === '$';
-      if (esUSD) montoD += precio; else montoS += precio;
+  if (tipoSel) {
+    datosSinTipo.forEach(r => {
+      const usd = _esUSD(r);
+      tipoNumCols.forEach(tiCol => {
+        if ((r[tiCol] || '').trim().toUpperCase() !== tipoSel.toUpperCase()) return;
+        const precio = parseFloat(r[`TotalLista_${tiCol.match(/\d+$/)[0]}`]) || 0;
+        if (!precio) return;
+        if (usd) montoD += precio; else montoS += precio;
+      });
     });
-  });
+  } else {
+    datosSinTipo.forEach(r => {
+      const usd = _esUSD(r);
+      if (usd) montoD += parseFloat(r['PrecioOriginal']) || 0;
+      else     montoS += parseFloat(r['PrecioOriginal']) || 0;
+    });
+  }
 
   const montoSoles   = montoS + montoD * FX;
   const montoDolares = montoD + montoS / FX;
