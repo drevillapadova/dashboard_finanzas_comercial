@@ -653,6 +653,13 @@ function filtrarPorFecha(arr, campoFecha) {
 function filtrarPorProyecto(arr) {
   const p = (document.getElementById('filtro-proyecto').value || '').trim();
   if (!p) return arr;
+  if (p.includes('|')) {
+    const [proy, etapa] = p.split('|');
+    return arr.filter(r =>
+      (r['Proyecto'] || '').trim().toUpperCase() === proy.toUpperCase() &&
+      (r['Etapa']   || '').trim().toUpperCase() === etapa.toUpperCase()
+    );
+  }
   const tieneProyecto = arr.some(r => (r['Proyecto'] || '').trim());
   if (!tieneProyecto) return arr;
   return arr.filter(r => (r['Proyecto'] || '').trim().toUpperCase() === p.toUpperCase());
@@ -752,16 +759,24 @@ function poblarFiltroProyecto() {
   const proyectos = new Set();
   [...DATA.ventas, ...DATA.stock].forEach(r => {
     const p = (r['Proyecto'] || '').trim();
-    if (p) proyectos.add(p);
+    if (!p) return;
+    if (p.toUpperCase().includes('LOMAS')) {
+      const e = (r['Etapa'] || '').trim();
+      proyectos.add(e ? p + '|' + e : p);
+    } else {
+      proyectos.add(p);
+    }
   });
   const sel = document.getElementById('filtro-proyecto');
   sel.innerHTML = '<option value="">Todos</option>';
-  [...proyectos].sort().forEach(p => {
+  [...proyectos].sort().forEach(key => {
     const o = document.createElement('option');
-    o.value = p; o.textContent = p;
+    o.value = key;
+    o.textContent = key.includes('|') ? key.replace('|', ' - ') : key;
     sel.appendChild(o);
   });
 }
+
 
 function poblarFiltroTipo() {
   const seen = new Set();
