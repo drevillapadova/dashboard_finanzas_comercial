@@ -405,10 +405,15 @@
         <div class="kpi-val" id="kpi-v-unidades">—</div>
         <div class="kpi-sub">en el periodo</div>
       </div>
-      <div class="kpi-card green">
-        <div class="kpi-label">Monto total</div>
+      <div class="kpi-card green" id="kpi-v-monto-card">
+        <div class="kpi-label" id="kpi-v-monto-lbl">Monto total</div>
         <div class="kpi-val" id="kpi-v-monto">—</div>
         <div class="kpi-sub" id="kpi-v-moneda-lbl">moneda seleccionada</div>
+      </div>
+      <div class="kpi-card green" id="kpi-v-monto-usd-card" style="display:none">
+        <div class="kpi-label">Monto Dólares</div>
+        <div class="kpi-val" id="kpi-v-monto-usd">—</div>
+        <div class="kpi-sub">USD original</div>
       </div>
       <div class="kpi-card orange">
         <div class="kpi-label">Ticket promedio</div>
@@ -586,13 +591,18 @@ function getMonedaLabel() {
 }
 
 function campoPrecio(row) {
-  // ETL pre-convierte a PrecioVentaSoles; PrecioVenta es la moneda original
-  if (MONEDA === 'soles')
-    return parseFloat(row['PrecioVentaSoles']) || parseFloat(row['PrecioVenta']) || 0;
-  if (MONEDA === 'dolares')
-    return (parseFloat(row['PrecioVentaSoles']) / FX) || parseFloat(row['PrecioVenta']) || 0;
-  // original: mostrar tal como viene (puede ser USD o PEN)
-  return parseFloat(row['PrecioVenta']) || 0;
+  const cols = Object.keys(row).filter(k => /^tipoinmueble_\d+$/i.test(k));
+  let s = 0, d = 0;
+  cols.forEach(tiCol => {
+    const n = tiCol.match(/\d+$/)[0];
+    const precio = parseFloat(row[`TotalLista_${n}`]) || 0;
+    if (!precio) return;
+    const mon = (row[`T/M_${n}`] || '').trim().toUpperCase();
+    const esUSD = mon.includes('DOL') || mon.includes('USD') || mon === 'D' || mon === '$';
+    if (esUSD) d += precio; else s += precio;
+  });
+  if (MONEDA === 'dolares') return d + s / FX;
+  return s + d * FX; // soles y original: equivalente en soles
 }
 
 // Detecta el nombre de columna buscando patrones (case-insensitive)
@@ -783,32 +793,47 @@ function renderVentas() {
     unidades = Object.values(tipoMapV).reduce((s, n) => s + n, 0) || datos.length;
   }
 
-  // Monto: si hay tipo seleccionado, sumar TotalLista_N por unidad de ese tipo
-  let monto;
-  if (tipoSel) {
-    monto = 0;
-    datosSinTipo.forEach(r => {
-      tipoNumCols.forEach(tiCol => {
-        if ((r[tiCol] || '').trim().toUpperCase() !== tipoSel.toUpperCase()) return;
-        const n = tiCol.match(/\d+$/)[0];
-        const precio = parseFloat(r[`TotalLista_${n}`]) || 0;
-        if (!precio) return;
-        const moneda = (r[`T/M_${n}`] || '').trim().toUpperCase();
-        const esUSD  = moneda.includes('DOL') || moneda.includes('USD') || moneda === 'D' || moneda === '$';
-        if (MONEDA === 'soles')   monto += esUSD ? precio * FX : precio;
-        else if (MONEDA === 'dolares') monto += esUSD ? precio : precio / FX;
-        else                      monto += precio;
-      });
+  // Monto split soles/dólares usando TotalLista_N (por unidad, filtrando por tipo si aplica)
+  let montoS = 0, montoD = 0;
+  datosSinTipo.forEach(r => {
+    tipoNumCols.forEach(tiCol => {
+      if (tipoSel && (r[tiCol] || '').trim().toUpperCase() !== tipoSel.toUpperCase()) return;
+      const n = tiCol.match(/\d+$/)[0];
+      const precio = parseFloat(r[`TotalLista_${n}`]) || 0;
+      if (!precio) return;
+      const mon = (r[`T/M_${n}`] || '').trim().toUpperCase();
+      const esUSD = mon.includes('DOL') || mon.includes('USD') || mon === 'D' || mon === '$';
+      if (esUSD) montoD += precio; else montoS += precio;
     });
-  } else {
-    monto = datos.reduce((s, r) => s + campoPrecio(r), 0);
-  }
-  const ticket = unidades ? monto / unidades : 0;
+  });
 
-  document.getElementById('kpi-v-unidades').textContent  = unidades.toLocaleString('es-PE');
-  document.getElementById('kpi-v-monto').textContent     = fmt(monto, MONEDA);
-  document.getElementById('kpi-v-ticket').textContent    = fmt(ticket, MONEDA);
-  document.getElementById('kpi-v-moneda-lbl').textContent = getMonedaLabel();
+  const montoSoles   = montoS + montoD * FX;
+  const montoDolares = montoD + montoS / FX;
+  const ticket = unidades ? montoSoles / unidades : 0;
+
+  document.getElementById('kpi-v-unidades').textContent = unidades.toLocaleString('es-PE');
+  document.getElementById('kpi-v-ticket').textContent   = fmt(ticket, 'soles');
+
+  const cardUSD   = document.getElementById('kpi-v-monto-usd-card');
+  const lblMonto  = document.getElementById('kpi-v-monto-lbl');
+  const lblMoneda = document.getElementById('kpi-v-moneda-lbl');
+  if (MONEDA === 'original') {
+    cardUSD.style.display = '';
+    lblMonto.textContent  = 'Monto Soles';
+    lblMoneda.textContent = 'PEN original';
+    document.getElementById('kpi-v-monto').textContent     = fmt(montoS, 'soles');
+    document.getElementById('kpi-v-monto-usd').textContent = fmt(montoD, 'dolares');
+  } else if (MONEDA === 'dolares') {
+    cardUSD.style.display = 'none';
+    lblMonto.textContent  = 'Monto total';
+    lblMoneda.textContent = 'USD';
+    document.getElementById('kpi-v-monto').textContent = fmt(montoDolares, 'dolares');
+  } else {
+    cardUSD.style.display = 'none';
+    lblMonto.textContent  = 'Monto total';
+    lblMoneda.textContent = 'Soles';
+    document.getElementById('kpi-v-monto').textContent = fmt(montoSoles, 'soles');
+  }
 
   // Ventas por tipo cards
   const ventasTiposCont = document.getElementById('ventas-tipos');
