@@ -793,8 +793,9 @@ function renderVentas() {
     unidades = Object.values(tipoMapV).reduce((s, n) => s + n, 0) || datos.length;
   }
 
-  // DEBUG temporal: ver columnas del sheet de ventas
-  if (datosSinTipo.length) console.log('[DEBUG COLS] ' + JSON.stringify(Object.keys(datosSinTipo[0])));
+  // DEBUG temporal: ver valores únicos de TipoMoneda
+  const tmSet = new Set(datosSinTipo.map(r => (r['TipoMoneda'] || '').trim()));
+  console.log('[DEBUG TipoMoneda] ' + JSON.stringify([...tmSet]));
 
   // Monto split soles/dólares usando TotalLista_N (por unidad, filtrando por tipo si aplica)
   let montoS = 0, montoD = 0;
