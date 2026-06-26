@@ -590,13 +590,36 @@ function getMonedaLabel() {
   return MONEDA === 'dolares' ? 'USD' : MONEDA === 'soles' ? 'Soles SUNAT' : 'Moneda original';
 }
 
-function campoPrecio(row) {
-  if (MONEDA === 'dolares') return parseFloat(row['PrecioDolares']) || 0;
-  return parseFloat(row['PrecioSoles']) || 0;
+function _unitEsUSD(row, tipo, precio) {
+  const proy = (row['Proyecto'] || '').toUpperCase();
+  const t    = (tipo || '').toUpperCase();
+  // Litoral: determinar por rango de precio (el CRM etiqueta mal la moneda)
+  if (proy.includes('LITORAL')) {
+    if (t.includes('ESTACION') && !t.includes('COMERCI') && !t.includes('LOCAL') && !t.includes('TIENDA')) {
+      return precio >= 10000 && precio <= 29000;
+    }
+    if ((t.includes('DEPOSIT') || t.includes('DEPÓSIT')) && !t.includes('COMERCI')) {
+      return precio >= 1700 && precio <= 3300;
+    }
+  }
+  // Sunny: precios < 600k etiquetados como soles son en realidad USD
+  if (proy.includes('SUNNY') && precio > 0 && precio < 600000) return true;
+  // Default: usar TipoMoneda de la transacción
+  return (row['TipoMoneda'] || '').toLowerCase().includes('dolar');
 }
 
-function _esUSD(row) {
-  return (row['TipoMoneda'] || '').toLowerCase().includes('dolar');
+function campoPrecio(row) {
+  const cols = Object.keys(row).filter(k => /^tipoinmueble_\d+$/i.test(k));
+  let s = 0, d = 0;
+  cols.forEach(tiCol => {
+    const n     = tiCol.match(/\d+$/)[0];
+    const tipo  = (row[tiCol] || '').trim();
+    const precio = parseFloat(row[`TotalLista_${n}`]) || 0;
+    if (!tipo || !precio) return;
+    if (_unitEsUSD(row, tipo, precio)) d += precio; else s += precio;
+  });
+  if (MONEDA === 'dolares') return d + s / FX;
+  return s + d * FX;
 }
 
 // Detecta el nombre de columna buscando patrones (case-insensitive)
@@ -787,25 +810,19 @@ function renderVentas() {
     unidades = Object.values(tipoMapV).reduce((s, n) => s + n, 0) || datos.length;
   }
 
-  // Monto split soles/dólares usando TipoMoneda (transacción) + TotalLista_N (por unidad)
+  // Monto split soles/dólares usando corrección por unidad (_unitEsUSD)
   let montoS = 0, montoD = 0;
-  if (tipoSel) {
-    datosSinTipo.forEach(r => {
-      const usd = _esUSD(r);
-      tipoNumCols.forEach(tiCol => {
-        if ((r[tiCol] || '').trim().toUpperCase() !== tipoSel.toUpperCase()) return;
-        const precio = parseFloat(r[`TotalLista_${tiCol.match(/\d+$/)[0]}`]) || 0;
-        if (!precio) return;
-        if (usd) montoD += precio; else montoS += precio;
-      });
+  datosSinTipo.forEach(r => {
+    tipoNumCols.forEach(tiCol => {
+      const tipo  = (r[tiCol] || '').trim();
+      if (!tipo) return;
+      if (tipoSel && tipo.toUpperCase() !== tipoSel.toUpperCase()) return;
+      const n      = tiCol.match(/\d+$/)[0];
+      const precio = parseFloat(r[`TotalLista_${n}`]) || 0;
+      if (!precio) return;
+      if (_unitEsUSD(r, tipo, precio)) montoD += precio; else montoS += precio;
     });
-  } else {
-    datosSinTipo.forEach(r => {
-      const usd = _esUSD(r);
-      if (usd) montoD += parseFloat(r['PrecioOriginal']) || 0;
-      else     montoS += parseFloat(r['PrecioOriginal']) || 0;
-    });
-  }
+  });
 
   const montoSoles   = montoS + montoD * FX;
   const montoDolares = montoD + montoS / FX;
