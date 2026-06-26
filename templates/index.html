@@ -758,14 +758,15 @@ function renderVentas() {
 
   const datos = aplicarFiltros(DATA.ventas, 'FechaVenta');
 
-  // kpi-v-unidades: si hay tipo seleccionado, mostrar unidades de ese tipo (no transacciones)
+  // kpi-v-unidades: conteo de unidades (no transacciones)
   const tipoSel = (document.getElementById('filtro-tipo').value || '').trim();
   let unidades;
   if (tipoSel) {
     const entry = Object.entries(tipoMapV).find(([k]) => k.toUpperCase() === tipoSel.toUpperCase());
     unidades = entry ? entry[1] : datos.length;
   } else {
-    unidades = datos.length;
+    // Todos: suma total de unidades de todos los tipos
+    unidades = Object.values(tipoMapV).reduce((s, n) => s + n, 0) || datos.length;
   }
 
   const monto  = datos.reduce((s, r) => s + campoPrecio(r), 0);
