@@ -799,11 +799,21 @@ function renderVentas() {
   // Ventas por tipo cards
   const ventasTiposCont = document.getElementById('ventas-tipos');
   if (ventasTiposCont) {
-    const entries = Object.entries(tipoMapV).sort((a, b) => b[1] - a[1]);
+    const _tipoRank = t => {
+      const n = t.toLowerCase().replace(/[áéíóúü]/g, c => ({á:'a',é:'e',í:'i',ó:'o',ú:'u',ü:'u'}[c]));
+      if (n.includes('departamento')) return 0;
+      if (n.includes('estacion') && !n.includes('biciclet')) return 1;
+      if (n.includes('deposit')) return 2;
+      if (n.includes('azotea')) return 3;
+      if (n.includes('biciclet')) return 4;
+      return 5;
+    };
+    const _normLabel = t => { const s = t.trim(); return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(); };
+    const entries = Object.entries(tipoMapV).sort((a, b) => _tipoRank(a[0]) - _tipoRank(b[0]));
     ventasTiposCont.innerHTML = entries.length
       ? entries.map(([tipo, n]) => `
           <div class="kpi-card">
-            <div class="kpi-label">${tipo}</div>
+            <div class="kpi-label">${_normLabel(tipo)}</div>
             <div class="kpi-val">${n.toLocaleString('es-PE')}</div>
             <div class="kpi-sub">unidades vendidas</div>
           </div>`).join('')
