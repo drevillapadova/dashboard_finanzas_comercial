@@ -769,7 +769,26 @@ function renderVentas() {
     unidades = Object.values(tipoMapV).reduce((s, n) => s + n, 0) || datos.length;
   }
 
-  const monto  = datos.reduce((s, r) => s + campoPrecio(r), 0);
+  // Monto: si hay tipo seleccionado, sumar TotalLista_N por unidad de ese tipo
+  let monto;
+  if (tipoSel) {
+    monto = 0;
+    datosSinTipo.forEach(r => {
+      tipoNumCols.forEach(tiCol => {
+        if ((r[tiCol] || '').trim().toUpperCase() !== tipoSel.toUpperCase()) return;
+        const n = tiCol.match(/\d+$/)[0];
+        const precio = parseFloat(r[`TotalLista_${n}`]) || 0;
+        if (!precio) return;
+        const moneda = (r[`T/M_${n}`] || '').trim().toUpperCase();
+        const esUSD  = moneda.includes('DOL') || moneda.includes('USD') || moneda === 'D' || moneda === '$';
+        if (MONEDA === 'soles')   monto += esUSD ? precio * FX : precio;
+        else if (MONEDA === 'dolares') monto += esUSD ? precio : precio / FX;
+        else                      monto += precio;
+      });
+    });
+  } else {
+    monto = datos.reduce((s, r) => s + campoPrecio(r), 0);
+  }
   const ticket = unidades ? monto / unidades : 0;
 
   document.getElementById('kpi-v-unidades').textContent  = unidades.toLocaleString('es-PE');
