@@ -653,11 +653,11 @@ function filtrarPorFecha(arr, campoFecha) {
 function filtrarPorProyecto(arr) {
   const p = (document.getElementById('filtro-proyecto').value || '').trim();
   if (!p) return arr;
-  if (p.includes('|')) {
-    const [proy, etapa] = p.split('|');
+  if (p === '__LOMAS__4' || p === '__LOMAS__5') {
+    const num = p.slice(-1); // '4' o '5'
     return arr.filter(r =>
-      (r['Proyecto'] || '').trim().toUpperCase() === proy.toUpperCase() &&
-      (r['Etapa']   || '').trim().toUpperCase() === etapa.toUpperCase()
+      (r['Proyecto'] || '').toUpperCase().includes('LOMAS') &&
+      String(r['Etapa'] || '').includes(num)
     );
   }
   const tieneProyecto = arr.some(r => (r['Proyecto'] || '').trim());
@@ -757,22 +757,24 @@ function tablaHTML(data, cols) {
 // ── Filtros proyecto y tipo ──────────────────────────────────
 function poblarFiltroProyecto() {
   const proyectos = new Set();
+  let lomasNombre = '';
   [...DATA.ventas, ...DATA.stock].forEach(r => {
     const p = (r['Proyecto'] || '').trim();
     if (!p) return;
-    if (p.toUpperCase().includes('LOMAS')) {
-      const e = (r['Etapa'] || '').trim();
-      proyectos.add(e ? p + '|' + e : p);
-    } else {
-      proyectos.add(p);
-    }
+    if (p.toUpperCase().includes('LOMAS')) { lomasNombre = p; }
+    else { proyectos.add(p); }
   });
   const sel = document.getElementById('filtro-proyecto');
   sel.innerHTML = '<option value="">Todos</option>';
-  [...proyectos].sort().forEach(key => {
+  const lista = [...proyectos].sort().map(p => ({val: p, txt: p}));
+  if (lomasNombre) {
+    lista.push({val: '__LOMAS__4', txt: lomasNombre + ' - Etapa 4'});
+    lista.push({val: '__LOMAS__5', txt: lomasNombre + ' - Etapa 5'});
+    lista.sort((a, b) => a.txt.localeCompare(b.txt));
+  }
+  lista.forEach(({val, txt}) => {
     const o = document.createElement('option');
-    o.value = key;
-    o.textContent = key.includes('|') ? key.replace('|', ' - ') : key;
+    o.value = val; o.textContent = txt;
     sel.appendChild(o);
   });
 }
