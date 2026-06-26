@@ -793,6 +793,15 @@ function renderVentas() {
     unidades = Object.values(tipoMapV).reduce((s, n) => s + n, 0) || datos.length;
   }
 
+  // DEBUG temporal: ver valores únicos de T/M_N
+  const tmVals = new Set();
+  datosSinTipo.forEach(r => tipoNumCols.forEach(tiCol => {
+    const n = tiCol.match(/\d+$/)[0];
+    const v = (r[`T/M_${n}`] || '').trim();
+    if (v) tmVals.add(v);
+  }));
+  console.log('[DEBUG T/M] valores únicos:', [...tmVals]);
+
   // Monto split soles/dólares usando TotalLista_N (por unidad, filtrando por tipo si aplica)
   let montoS = 0, montoD = 0;
   datosSinTipo.forEach(r => {
