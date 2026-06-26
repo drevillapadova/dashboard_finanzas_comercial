@@ -755,12 +755,14 @@ function renderVentas() {
   document.getElementById('kpi-v-moneda-lbl').textContent = getMonedaLabel();
 
   // Ventas por tipo: suma todas las columnas TipoInmueble_1..6
+  // Usamos datos sin filtro de tipo para no perder unidades secundarias
   const ventasTiposCont = document.getElementById('ventas-tipos');
   if (ventasTiposCont) {
+    const datosSinTipo = filtrarPorProyecto(filtrarPorFecha(DATA.ventas, 'FechaVenta'));
     const tipoMapV = {};
-    const tipoNumCols = ['TipoInmueble_1','TipoInmueble_2','TipoInmueble_3',
-                         'TipoInmueble_4','TipoInmueble_5','TipoInmueble_6'];
-    datos.forEach(r => {
+    const allCols = datosSinTipo.length ? Object.keys(datosSinTipo[0]) : [];
+    const tipoNumCols = allCols.filter(k => /^tipoinmueble_\d+$/i.test(k.trim()));
+    datosSinTipo.forEach(r => {
       tipoNumCols.forEach(col => {
         const t = (r[col] || '').trim();
         if (t) tipoMapV[t] = (tipoMapV[t] || 0) + 1;
