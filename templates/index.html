@@ -800,7 +800,7 @@ function renderVentas() {
     const v = (r[`T/M_${n}`] || '').trim();
     if (v) tmVals.add(v);
   }));
-  console.log('[DEBUG T/M] valores únicos:', [...tmVals]);
+  console.log('[DEBUG T/M] valores únicos: ' + JSON.stringify([...tmVals]));
 
   // Monto split soles/dólares usando TotalLista_N (por unidad, filtrando por tipo si aplica)
   let montoS = 0, montoD = 0;
