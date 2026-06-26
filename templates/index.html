@@ -723,14 +723,18 @@ function poblarFiltroProyecto() {
 }
 
 function poblarFiltroTipo() {
-  const tipos = new Set();
+  const seen = new Set();
+  const tipos = [];
   [...DATA.ventas, ...DATA.stock].forEach(r => {
     const col = _getTipoCol(r);
-    if (col && r[col] && r[col].trim()) tipos.add(r[col].trim());
+    if (col && r[col] && r[col].trim()) {
+      const key = r[col].trim().toUpperCase();
+      if (!seen.has(key)) { seen.add(key); tipos.push(r[col].trim()); }
+    }
   });
   const sel = document.getElementById('filtro-tipo');
   sel.innerHTML = '<option value="">Todos</option>';
-  [...tipos].sort().forEach(t => {
+  tipos.sort().forEach(t => {
     const o = document.createElement('option');
     o.value = t; o.textContent = t;
     sel.appendChild(o);
