@@ -417,6 +417,9 @@
       </div>
     </div>
 
+    <!-- Ventas por tipo de inmueble -->
+    <div id="ventas-tipos" class="kpi-row" style="margin-top:0"></div>
+
     <!-- Sub-sección Stock -->
     <div class="sub-header"><span>Stock y Disponibilidad</span></div>
     <div class="kpi-row">
@@ -746,6 +749,29 @@ function renderVentas() {
   document.getElementById('kpi-v-monto').textContent     = fmt(monto, MONEDA);
   document.getElementById('kpi-v-ticket').textContent    = fmt(ticket, MONEDA);
   document.getElementById('kpi-v-moneda-lbl').textContent = getMonedaLabel();
+
+  // Ventas por tipo: suma todas las columnas TipoInmueble_1..6
+  const ventasTiposCont = document.getElementById('ventas-tipos');
+  if (ventasTiposCont) {
+    const tipoMapV = {};
+    const tipoNumCols = ['TipoInmueble_1','TipoInmueble_2','TipoInmueble_3',
+                         'TipoInmueble_4','TipoInmueble_5','TipoInmueble_6'];
+    datos.forEach(r => {
+      tipoNumCols.forEach(col => {
+        const t = (r[col] || '').trim();
+        if (t) tipoMapV[t] = (tipoMapV[t] || 0) + 1;
+      });
+    });
+    const entries = Object.entries(tipoMapV).sort((a, b) => b[1] - a[1]);
+    ventasTiposCont.innerHTML = entries.length
+      ? entries.map(([tipo, n]) => `
+          <div class="kpi-card">
+            <div class="kpi-label">${tipo}</div>
+            <div class="kpi-val">${n.toLocaleString('es-PE')}</div>
+            <div class="kpi-sub">unidades vendidas</div>
+          </div>`).join('')
+      : '';
+  }
 
   // Stock KPIs — excluir DEVUELTA del total, disponible = solo DISPONIBLE
   const stockFiltrado = filtrarPorProyecto(DATA.stock);
