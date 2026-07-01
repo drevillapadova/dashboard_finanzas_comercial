@@ -572,13 +572,6 @@ async function loadData() {
     document.getElementById('ultima-actualizacion').textContent =
       'Actualizado: ' + (json.ultima_actualizacion || '—');
     buildStockMonedaLookup();
-    // DEBUG TEMPORAL
-    const litoralKeys = Object.keys(STOCK_MONEDA_LOOKUP).filter(k => k.includes('LITORAL'));
-    console.warn('[DEBUG] Primeras 5 claves LITORAL en lookup:', litoralKeys.slice(0, 5));
-    console.warn('[DEBUG] Lookup "LITORAL 900||101":', STOCK_MONEDA_LOOKUP['LITORAL 900||101']);
-    console.warn('[DEBUG] Lookup "LITORAL 900||102":', STOCK_MONEDA_LOOKUP['LITORAL 900||102']);
-    const keys101 = Object.keys(STOCK_MONEDA_LOOKUP).filter(k => k.endsWith('||101') || k.endsWith('||102'));
-    console.warn('[DEBUG] Todas las claves terminadas en ||101 o ||102:', keys101);
     poblarFiltroProyecto();
     poblarFiltroTipo();
     renderAll();
@@ -621,10 +614,11 @@ function _unitEsUSD(row, tipo, precio, nroInmueble) {
 
   // Reglas de rango de precio (override final para Litoral estac/depósito)
   if (proy.includes('LITORAL')) {
-    if (t.includes('ESTACION') && !t.includes('COMERCI') && !t.includes('LOCAL') && !t.includes('TIENDA')) {
+    if (t.includes('COMERCI')) return true;
+    if (t.includes('ESTACION') && !t.includes('LOCAL') && !t.includes('TIENDA')) {
       return precio >= 10000 && precio <= 29000;
     }
-    if ((t.includes('DEPOSIT') || t.includes('DEPÓSIT')) && !t.includes('COMERCI')) {
+    if (t.includes('DEPOSIT') || t.includes('DEPÓSIT')) {
       return precio >= 1700 && precio <= 3300;
     }
   }
