@@ -26,59 +26,75 @@ from selenium.webdriver.support import expected_conditions as EC
 
 _TC_CACHE = {}
 
+# Ruta del cache persistente en disco (TC SUNAT venta con 2 decimales)
+TC_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tc_cache.json')
+
+
+def _cargar_cache_disco():
+    """Carga el cache persistente de TC desde disco al iniciar el ETL."""
+    global _TC_CACHE
+    if not os.path.exists(TC_CACHE_FILE):
+        print('   -> [TC] Cache en disco no encontrado, se creara en esta corrida')
+        return
+    try:
+        with open(TC_CACHE_FILE, 'r', encoding='utf-8') as f:
+            _TC_CACHE.update(json.load(f))
+        print(f'   -> [TC] Cache cargado desde disco: {len(_TC_CACHE)} fechas')
+    except Exception as e:
+        print(f'   -> [TC] Error cargando cache disco: {e}')
+
+
+def _guardar_cache_disco():
+    """Guarda el cache de TC en disco al finalizar el ETL."""
+    try:
+        with open(TC_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(_TC_CACHE, f, ensure_ascii=False, indent=2)
+        print(f'   -> [TC] Cache guardado en disco: {len(_TC_CACHE)} fechas')
+    except Exception as e:
+        print(f'   -> [TC] Error guardando cache disco: {e}')
+
+
 def _fetch_tc_eapi(fecha_str):
     try:
-        r = requests.get(f"https://free.e-api.net.pe/tipo-cambio/{fecha_str}.json", timeout=10)
+        r = requests.get(f'https://free.e-api.net.pe/tipo-cambio/{fecha_str}.json', timeout=10)
         data = r.json()
-        return float(data["venta"]) if data.get("venta") else None
+        return float(data['venta']) if data.get('venta') else None
     except: return None
+
 
 def _fetch_tc_bcrp(fecha_str):
     try:
-        url = f"https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PD04637PD/json/{fecha_str}/{fecha_str}/ing"
+        url = f'https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PD04637PD/json/{fecha_str}/{fecha_str}/ing'
         r = requests.get(url, timeout=10)
         data = json.loads(r.content.decode('utf-8-sig'))
-        periodos = data.get("periods", [])
-        if periodos and periodos[0].get("values"):
-            return float(periodos[0]["values"][0])
+        periodos = data.get('periods', [])
+        if periodos and periodos[0].get('values'):
+            return float(periodos[0]['values'][0])
     except: return None
 
-def precargar_tc_rango(año_ini=2023):
+
+def precargar_tc_fechas(fechas_set):
     """
-    Pre-carga el cache de TC con UNA sola llamada al BCRP para todo el rango.
-    Evita hacer cientos de requests individuales al procesar cada fila del df.
+    Pre-carga el cache con TC SUNAT venta (e-api) para las fechas dadas.
+    Solo consulta fechas que NO esten ya en el cache (disco + memoria).
+    Fallback a BCRP si e-api falla. Guarda en disco al terminar.
     """
-    from datetime import date
-    fecha_ini = f"{año_ini}-01-01"
-    fecha_fin = date.today().strftime("%Y-%m-%d")
-    MESES = {'Ene':'01','Feb':'02','Mar':'03','Abr':'04','May':'05','Jun':'06',
-             'Jul':'07','Ago':'08','Sep':'09','Oct':'10','Nov':'11','Dic':'12'}
-    try:
-        url = (f"https://estadisticas.bcrp.gob.pe/estadisticas/series/api/"
-               f"PD04637PD/json/{fecha_ini}/{fecha_fin}/ing")
-        r = requests.get(url, timeout=60)
-        data = json.loads(r.content.decode('utf-8-sig'))
-        cargados = 0
-        for p in data.get("periods", []):
-            nombre = p.get("name", "")   # formato "31.Dic.23"
-            valor  = p.get("values", [None])[0]
-            if not nombre or not valor: continue
-            try:
-                partes = nombre.split(".")
-                if len(partes) == 3:
-                    dd, mmm, yy = partes
-                    mm = MESES.get(mmm)
-                    if mm:
-                        yyyy = f"20{yy}" if int(yy) < 50 else f"19{yy}"
-                        key  = f"{yyyy}-{mm}-{dd.zfill(2)}"
-                        _TC_CACHE[key] = round(float(valor), 2)
-                        cargados += 1
-            except: pass
-        print(f"   -> [TC] Pre-cargados {cargados} TCs en 1 llamada ({fecha_ini} → {fecha_fin})")
-        return cargados
-    except Exception as e:
-        print(f"   -> [TC] Error pre-cargando rango: {e} (se usará fetch por fila como respaldo)")
-        return 0
+    pendientes = sorted(f for f in fechas_set if f and f not in _TC_CACHE)
+    if not pendientes:
+        print(f'   -> [TC] Todas las fechas ya estan en cache ({len(_TC_CACHE)} total)')
+        return
+    print(f'   -> [TC] Consultando {len(pendientes)} fechas nuevas en SUNAT (e-api)...')
+    ok = 0
+    for fecha_str in pendientes:
+        tc_raw = _fetch_tc_eapi(fecha_str)
+        if tc_raw is None:
+            tc_raw = _fetch_tc_bcrp(fecha_str)
+        if tc_raw:
+            _TC_CACHE[fecha_str] = round(tc_raw, 2)
+            ok += 1
+        time.sleep(0.15)
+    _guardar_cache_disco()
+    print(f'   -> [TC] {ok}/{len(pendientes)} TCs obtenidos y guardados')
 
 
 def get_tipo_cambio(fecha=None):
@@ -87,7 +103,7 @@ def get_tipo_cambio(fecha=None):
     if fecha is None or (hasattr(_pd, 'isnull') and _pd.isnull(fecha)):
         fecha_dt = datetime.now()
     elif isinstance(fecha, str):
-        try: fecha_dt = datetime.strptime(fecha[:10], "%Y-%m-%d")
+        try: fecha_dt = datetime.strptime(fecha[:10], '%Y-%m-%d')
         except: fecha_dt = datetime.now()
     elif hasattr(fecha, 'strftime'):
         try: fecha_dt = fecha.to_pydatetime() if hasattr(fecha, 'to_pydatetime') else fecha
@@ -95,18 +111,19 @@ def get_tipo_cambio(fecha=None):
     else:
         fecha_dt = datetime.now()
 
-    fecha_str = fecha_dt.strftime("%Y-%m-%d")
+    fecha_str = fecha_dt.strftime('%Y-%m-%d')
     if fecha_str in _TC_CACHE: return _TC_CACHE[fecha_str]
 
+    # Buscar hasta 8 dias atras (fines de semana/feriados)
     for dias_atras in range(0, 8):
-        f = (fecha_dt - timedelta(days=dias_atras)).strftime("%Y-%m-%d")
+        f = (fecha_dt - timedelta(days=dias_atras)).strftime('%Y-%m-%d')
         if f in _TC_CACHE:
             _TC_CACHE[fecha_str] = _TC_CACHE[f]
             return _TC_CACHE[f]
         tc_raw = _fetch_tc_eapi(f) or _fetch_tc_bcrp(f)
         if tc_raw:
             tc = round(tc_raw, 2)
-            print(f"   -> [TC] {fecha_str}: S/ {tc}")
+            print(f'   -> [TC] {fecha_str}: S/ {tc}')
             _TC_CACHE[fecha_str] = tc
             _TC_CACHE[f] = tc
             return tc
@@ -655,13 +672,21 @@ def process_ventas(df_stock_crudo=None):
     col_fecha  = next((c for c in ['FechaVenta', 'FechaEntrega_Minuta'] if c in df.columns), None)
     col_moneda = 'TipoMoneda' if 'TipoMoneda' in df.columns else None
 
-    # Corregir moneda: stock lookup → Sunny → Litoral
+    # Pre-cargar TC SUNAT venta para fechas unicas del dataset (solo las nuevas)
+    if col_fecha and col_fecha in df.columns:
+        fechas_unicas = set(
+            str(f)[:10] for f in df[col_fecha].dropna()
+            if str(f).strip() not in ('', 'nan', 'NaT')
+        )
+        precargar_tc_fechas(fechas_unicas)
+
+    # Corregir moneda: stock lookup -> Sunny -> Litoral
     if df_stock_crudo is not None and col_moneda:
         df = corregir_moneda_con_stock(df, df_stock_crudo)
     df = _corregir_moneda_sunny(df)
     df = _corregir_moneda_litoral(df)
 
-    # Convertir a soles/dólares con TC histórico SUNAT por fecha de venta
+    # Convertir a soles/dolares con TC SUNAT venta por fecha de venta
     if 'PrecioVenta' in df.columns and col_moneda:
         df = convertir_monedas(df, 'PrecioVenta', col_moneda, col_fecha)
 
@@ -768,8 +793,8 @@ def main():
     print(f"   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*70)
 
-    # Pre-cargar TCs 2023→hoy en una sola llamada (evita ~1000 requests individuales)
-    precargar_tc_rango(año_ini=min(AÑOS))
+    # Cargar cache TC desde disco (e-api SUNAT venta, 2 decimales)
+    _cargar_cache_disco()
 
     driver = get_driver(DOWNLOAD_DIR_STOCK)
     wait   = WebDriverWait(driver, 30)
