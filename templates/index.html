@@ -573,12 +573,12 @@ async function loadData() {
       'Actualizado: ' + (json.ultima_actualizacion || '—');
     buildStockMonedaLookup();
     // DEBUG TEMPORAL
-    console.warn('[DEBUG] DATA.stock filas:', DATA.stock.length, '| DATA.ventas filas:', DATA.ventas.length);
-    console.warn('[DEBUG] STOCK_MONEDA_LOOKUP total claves:', Object.keys(STOCK_MONEDA_LOOKUP).length);
-    const litoralKeys = Object.entries(STOCK_MONEDA_LOOKUP).filter(([k]) => k.includes('LITORAL'));
-    console.warn('[DEBUG STOCK LOOKUP] Entradas LITORAL:', litoralKeys.slice(0, 30));
-    const ventasLitoral = DATA.ventas.filter(r => (r['Proyecto']||'').toUpperCase().includes('LITORAL'));
-    console.warn('[DEBUG VENTAS] Filas Litoral:', ventasLitoral.length, ventasLitoral.length ? '| Proyecto raw: "' + ventasLitoral[0]['Proyecto'] + '" | NroInmueble_1: "' + ventasLitoral[0]['NroInmueble_1'] + '"' : '');
+    const litoralKeys = Object.keys(STOCK_MONEDA_LOOKUP).filter(k => k.includes('LITORAL'));
+    console.warn('[DEBUG] Primeras 5 claves LITORAL en lookup:', litoralKeys.slice(0, 5));
+    console.warn('[DEBUG] Lookup "LITORAL 900||101":', STOCK_MONEDA_LOOKUP['LITORAL 900||101']);
+    console.warn('[DEBUG] Lookup "LITORAL 900||102":', STOCK_MONEDA_LOOKUP['LITORAL 900||102']);
+    const keys101 = Object.keys(STOCK_MONEDA_LOOKUP).filter(k => k.endsWith('||101') || k.endsWith('||102'));
+    console.warn('[DEBUG] Todas las claves terminadas en ||101 o ||102:', keys101);
     poblarFiltroProyecto();
     poblarFiltroTipo();
     renderAll();
