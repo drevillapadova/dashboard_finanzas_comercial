@@ -572,11 +572,13 @@ async function loadData() {
     document.getElementById('ultima-actualizacion').textContent =
       'Actualizado: ' + (json.ultima_actualizacion || '—');
     buildStockMonedaLookup();
-    // DEBUG TEMPORAL: claves LITORAL en stock lookup
+    // DEBUG TEMPORAL
+    console.warn('[DEBUG] DATA.stock filas:', DATA.stock.length, '| DATA.ventas filas:', DATA.ventas.length);
+    console.warn('[DEBUG] STOCK_MONEDA_LOOKUP total claves:', Object.keys(STOCK_MONEDA_LOOKUP).length);
     const litoralKeys = Object.entries(STOCK_MONEDA_LOOKUP).filter(([k]) => k.includes('LITORAL'));
-    console.log('[DEBUG STOCK LOOKUP] Entradas LITORAL:', litoralKeys.slice(0, 20));
+    console.warn('[DEBUG STOCK LOOKUP] Entradas LITORAL:', litoralKeys.slice(0, 30));
     const ventasLitoral = DATA.ventas.filter(r => (r['Proyecto']||'').toUpperCase().includes('LITORAL'));
-    if (ventasLitoral.length) console.log('[DEBUG VENTAS] Proyecto Litoral raw:', ventasLitoral[0]['Proyecto'], '| NroInmueble_1:', ventasLitoral[0]['NroInmueble_1']);
+    console.warn('[DEBUG VENTAS] Filas Litoral:', ventasLitoral.length, ventasLitoral.length ? '| Proyecto raw: "' + ventasLitoral[0]['Proyecto'] + '" | NroInmueble_1: "' + ventasLitoral[0]['NroInmueble_1'] + '"' : '');
     poblarFiltroProyecto();
     poblarFiltroTipo();
     renderAll();
