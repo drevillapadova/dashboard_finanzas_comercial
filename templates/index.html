@@ -530,6 +530,23 @@ Chart.defaults.color       = '#8a929c';
 let DATA   = { ventas: [], stock: [], ing_deposito: [] };
 let MONEDA = 'original';
 const FX   = 3.75; // TC fallback PEN/USD
+let STOCK_MONEDA_LOOKUP = null; // (Proyecto||NroInmueble) → 'DOLAR'|'SOLES'
+
+function normNro(v) {
+  let s = String(v || '').trim();
+  if (s.endsWith('.0')) s = s.slice(0, -2);
+  return s.toUpperCase();
+}
+
+function buildStockMonedaLookup() {
+  STOCK_MONEDA_LOOKUP = {};
+  DATA.stock.forEach(r => {
+    const proy = (r['Proyecto'] || '').trim().toUpperCase();
+    const nro  = normNro(r['NroInmuebleActual'] || r['NroInmueble'] || '');
+    const mon  = (r['Moneda'] || '').trim().toUpperCase();
+    if (proy && nro && mon) STOCK_MONEDA_LOOKUP[proy + '||' + nro] = mon;
+  });
+}
 
 const COLORES_PROYECTO = {
   'HELIO - SANTA BEATRIZ': '#2f6df6',
@@ -554,6 +571,7 @@ async function loadData() {
     DATA.ing_deposito = csvToObjects(json.ing_deposito || []);
     document.getElementById('ultima-actualizacion').textContent =
       'Actualizado: ' + (json.ultima_actualizacion || '—');
+    buildStockMonedaLookup();
     poblarFiltroProyecto();
     poblarFiltroTipo();
     renderAll();
@@ -590,10 +608,11 @@ function getMonedaLabel() {
   return MONEDA === 'dolares' ? 'USD' : MONEDA === 'soles' ? 'Soles SUNAT' : 'Moneda original';
 }
 
-function _unitEsUSD(row, tipo, precio) {
+function _unitEsUSD(row, tipo, precio, nroInmueble) {
   const proy = (row['Proyecto'] || '').toUpperCase();
   const t    = (tipo || '').toUpperCase();
-  // Litoral: determinar por rango de precio (el CRM etiqueta mal la moneda)
+
+  // Reglas de rango de precio (override final para Litoral estac/depósito)
   if (proy.includes('LITORAL')) {
     if (t.includes('ESTACION') && !t.includes('COMERCI') && !t.includes('LOCAL') && !t.includes('TIENDA')) {
       return precio >= 10000 && precio <= 29000;
@@ -602,9 +621,16 @@ function _unitEsUSD(row, tipo, precio) {
       return precio >= 1700 && precio <= 3300;
     }
   }
-  // Sunny: precios < 600k etiquetados como soles son en realidad USD
+  // Sunny: precios < 600k en soles son USD
   if (proy.includes('SUNNY') && precio > 0 && precio < 600000) return true;
-  // Default: usar TipoMoneda de la transacción
+
+  // Stock lookup: fuente de verdad para el resto (ej. depas Litoral)
+  if (STOCK_MONEDA_LOOKUP && nroInmueble) {
+    const mon = STOCK_MONEDA_LOOKUP[proy + '||' + normNro(nroInmueble)];
+    if (mon !== undefined) return mon.includes('DOLAR') || mon.includes('USD');
+  }
+
+  // Fallback: TipoMoneda de la transacción
   return (row['TipoMoneda'] || '').toLowerCase().includes('dolar');
 }
 
@@ -612,11 +638,12 @@ function campoPrecio(row) {
   const cols = Object.keys(row).filter(k => /^tipoinmueble_\d+$/i.test(k));
   let s = 0, d = 0;
   cols.forEach(tiCol => {
-    const n     = tiCol.match(/\d+$/)[0];
-    const tipo  = (row[tiCol] || '').trim();
+    const n      = tiCol.match(/\d+$/)[0];
+    const tipo   = (row[tiCol] || '').trim();
     const precio = parseFloat(row[`TotalLista_${n}`]) || 0;
+    const nro    = row[`NroInmueble_${n}`];
     if (!tipo || !precio) return;
-    if (_unitEsUSD(row, tipo, precio)) d += precio; else s += precio;
+    if (_unitEsUSD(row, tipo, precio, nro)) d += precio; else s += precio;
   });
   if (MONEDA === 'dolares') return d + s / FX;
   return s + d * FX;
@@ -837,7 +864,8 @@ function renderVentas() {
       const n      = tiCol.match(/\d+$/)[0];
       const precio = parseFloat(r[`TotalLista_${n}`]) || 0;
       if (!precio) return;
-      if (_unitEsUSD(r, tipo, precio)) montoD += precio; else montoS += precio;
+      const nro = r[`NroInmueble_${n}`];
+      if (_unitEsUSD(r, tipo, precio, nro)) montoD += precio; else montoS += precio;
     });
   });
 
