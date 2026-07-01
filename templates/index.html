@@ -692,6 +692,12 @@ function filtrarPorProyecto(arr) {
   return arr.filter(r => (r['Proyecto'] || '').trim().toUpperCase() === p.toUpperCase());
 }
 
+function _getTipoUnidad(row, n) {
+  const modelo = (row[`Modelo_${n}`] || '').trim().toUpperCase();
+  if (modelo === 'COMERCIO') return 'Comercio';
+  return (row[`TipoInmueble_${n}`] || '').trim();
+}
+
 function _getTipoCol(row) {
   if (!row) return null;
   const keys = Object.keys(row);
@@ -718,9 +724,17 @@ function _normLabel(t) {
 function filtrarPorTipo(arr) {
   const t = (document.getElementById('filtro-tipo').value || '').trim();
   if (!t) return arr;
+  const tUp = t.toUpperCase();
+  const tiCols = arr[0] ? Object.keys(arr[0]).filter(k => /^tipoinmueble_\d+$/i.test(k)) : [];
+  if (tiCols.length) {
+    return arr.filter(r => tiCols.some(tiCol => {
+      const n = tiCol.match(/\d+$/)[0];
+      return _getTipoUnidad(r, n).toUpperCase() === tUp;
+    }));
+  }
   const col = _getTipoCol(arr[0]);
   if (!col) return arr;
-  return arr.filter(r => (r[col] || '').trim().toUpperCase() === t.toUpperCase());
+  return arr.filter(r => (r[col] || '').trim().toUpperCase() === tUp);
 }
 
 function aplicarFiltros(arr, campoFecha) {
@@ -810,12 +824,17 @@ function poblarFiltroProyecto() {
 function poblarFiltroTipo() {
   const seen = new Set();
   const tipos = [];
-  [...DATA.ventas, ...DATA.stock].forEach(r => {
+  const addTipo = t => { if (!t) return; const k = t.toUpperCase(); if (!seen.has(k)) { seen.add(k); tipos.push(t); } };
+  // Ventas: iterar todas las columnas TipoInmueble_N con corrección Comercio
+  DATA.ventas.forEach(r => {
+    Object.keys(r).filter(k => /^tipoinmueble_\d+$/i.test(k)).forEach(tiCol => {
+      addTipo(_getTipoUnidad(r, tiCol.match(/\d+$/)[0]));
+    });
+  });
+  // Stock: columna única TipoInmueble
+  DATA.stock.forEach(r => {
     const col = _getTipoCol(r);
-    if (col && r[col] && r[col].trim()) {
-      const key = r[col].trim().toUpperCase();
-      if (!seen.has(key)) { seen.add(key); tipos.push(r[col].trim()); }
-    }
+    if (col) addTipo((r[col] || '').trim());
   });
   const sel = document.getElementById('filtro-tipo');
   sel.innerHTML = '<option value="">Todos</option>';
@@ -836,7 +855,8 @@ function renderVentas() {
     : [];
   datosSinTipo.forEach(r => {
     tipoNumCols.forEach(col => {
-      const t = (r[col] || '').trim();
+      const n = col.match(/\d+$/)[0];
+      const t = _getTipoUnidad(r, n);
       if (t) tipoMapV[t] = (tipoMapV[t] || 0) + 1;
     });
   });
@@ -858,7 +878,8 @@ function renderVentas() {
   let montoS = 0, montoD = 0;
   datosSinTipo.forEach(r => {
     tipoNumCols.forEach(tiCol => {
-      const tipo  = (r[tiCol] || '').trim();
+      const n    = tiCol.match(/\d+$/)[0];
+      const tipo = _getTipoUnidad(r, n);
       if (!tipo) return;
       if (tipoSel && tipo.toUpperCase() !== tipoSel.toUpperCase()) return;
       const n      = tiCol.match(/\d+$/)[0];
