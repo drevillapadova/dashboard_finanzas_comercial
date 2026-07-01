@@ -456,6 +456,113 @@ def _filtrar_proyectos(df, col='Proyecto'):
 
 
 # ============================================================
+# UNPIVOT VENTAS: wide (1 fila=transacción) → long (1 fila=unidad)
+# ============================================================
+
+def _unpivot_ventas(df):
+    """Convierte ventas de formato ancho a largo: una fila por unidad (loop manual)."""
+    import re as _re
+    stubs = ['T/M', 'TipoInmueble', 'Modelo', 'NroInmueble', 'NroPiso', 'Vista',
+             'PrecioBase', 'PrecioLista', 'DescuentoLista', 'TotalLista', 'PrioridadOC', 'Orden']
+
+    # Detectar que numeros de unidad existen (busca cualquier stub_N en las columnas)
+    nums = sorted(set(
+        int(m.group(1))
+        for col in df.columns
+        for m in [_re.search(r'_([0-9]+)$', col)]
+        if m and any(col == f'{s}_{m.group(1)}' for s in stubs)
+    ))
+
+    if not nums:
+        print('   -> [UNPIVOT] Sin columnas Stub_N detectadas, retornando sin cambios')
+        return df
+
+    # Columnas fijas: todo lo que NO sea stub_N
+    stub_cols_all = {f'{s}_{n}' for s in stubs for n in nums}
+    cols_fijas = [c for c in df.columns if c not in stub_cols_all]
+
+    partes = []
+    for n in nums:
+        cols_n = {s: f'{s}_{n}' for s in stubs if f'{s}_{n}' in df.columns}
+        if not cols_n:
+            continue
+        parte = df[cols_fijas + list(cols_n.values())].copy()
+        parte = parte.rename(columns={v: k for k, v in cols_n.items()})
+        parte['N_Unidad'] = n
+        partes.append(parte)
+
+    if not partes:
+        print('   -> [UNPIVOT] Sin partes generadas, retornando sin cambios')
+        return df
+
+    df_long = pd.concat(partes, ignore_index=True)
+
+    # Filtrar filas sin TipoInmueble (slots vacios de la transaccion)
+    if 'TipoInmueble' in df_long.columns:
+        df_long = df_long[
+            df_long['TipoInmueble'].notna() &
+            (df_long['TipoInmueble'].astype(str).str.strip() != '') &
+            (df_long['TipoInmueble'].astype(str).str.strip().str.lower() != 'nan')
+        ]
+
+    # Modelo=COMERCIO -> TipoInmueble='Comercio' (separa locales comerciales de depas)
+    if 'Modelo' in df_long.columns:
+        mask = df_long['Modelo'].astype(str).str.upper().str.strip() == 'COMERCIO'
+        if mask.any():
+            df_long.loc[mask, 'TipoInmueble'] = 'Comercio'
+            print(f'   -> [UNPIVOT] {mask.sum()} unidades COMERCIO separadas')
+
+    print(f'   -> [UNPIVOT] {len(df):,} transacciones -> {len(df_long):,} unidades')
+    return df_long
+
+
+def _corregir_moneda_sunny(df):
+    """Sunny: precios < 600k marcados como SOLES son en realidad USD."""
+    if not {'Proyecto', 'TipoMoneda'}.issubset(df.columns): return df
+    col_p = next((c for c in ['TotalLista', 'PrecioVenta'] if c in df.columns), None)
+    if not col_p: return df
+    df = df.copy()
+    precios = pd.to_numeric(df[col_p], errors='coerce').fillna(0)
+    mask = (df['Proyecto'].str.upper().str.contains('SUNNY', na=False) &
+            ~df['TipoMoneda'].str.upper().str.contains('DOLAR|USD', na=False) &
+            precios.between(1, 599_999))
+    n = mask.sum()
+    if n:
+        df.loc[mask, 'TipoMoneda'] = 'DOLAR'
+        print(f"   -> [MONEDA] Sunny: {n} unidades →DOLAR")
+    return df
+
+
+def _corregir_moneda_litoral(df):
+    """Litoral: comercio=siempre USD, estac/dep por rango de precio."""
+    if not {'Proyecto', 'TipoMoneda', 'TipoInmueble'}.issubset(df.columns): return df
+    col_p = next((c for c in ['TotalLista', 'PrecioVenta'] if c in df.columns), None)
+    if not col_p: return df
+    df = df.copy()
+    precios = pd.to_numeric(df[col_p], errors='coerce').fillna(0)
+    lit  = df['Proyecto'].str.upper().str.contains('LITORAL', na=False)
+    tipo = df['TipoInmueble'].astype(str).str.upper().str.strip()
+    # Comercio: siempre USD
+    mask_c = lit & tipo.str.contains('COMERCI|LOCAL', na=False)
+    if 'Modelo' in df.columns:
+        mask_c = mask_c | (lit & (df['Modelo'].astype(str).str.upper().str.strip() == 'COMERCIO'))
+    n_c = mask_c.sum()
+    if n_c:
+        df.loc[mask_c, 'TipoMoneda'] = 'DOLAR'
+        print(f"   -> [MONEDA] Litoral Comercio: {n_c} →DOLAR")
+    # Estacionamiento: 10k–29k = USD, fuera = SOLES
+    mask_e = lit & tipo.str.contains('ESTACION', na=False) & ~tipo.str.contains('BICICLET|COMERCI|LOCAL', na=False)
+    df.loc[mask_e & precios.between(10_000, 29_000), 'TipoMoneda'] = 'DOLAR'
+    df.loc[mask_e & ~precios.between(10_000, 29_000), 'TipoMoneda'] = 'SOLES'
+    # Depósito: 1700–3300 = USD, fuera = SOLES
+    mask_d = lit & (tipo.str.contains('DEPOSIT', na=False) | tipo.str.contains('DEPÓSIT', na=False)) & ~tipo.str.contains('COMERCI', na=False)
+    df.loc[mask_d & precios.between(1_700, 3_300), 'TipoMoneda'] = 'DOLAR'
+    df.loc[mask_d & ~precios.between(1_700, 3_300), 'TipoMoneda'] = 'SOLES'
+    print(f"   -> [MONEDA] Litoral Estac/Dep: correcciones aplicadas")
+    return df
+
+
+# ============================================================
 # CORRECCIÓN MONEDA (stock como fuente de verdad)
 # ============================================================
 
@@ -538,16 +645,25 @@ def process_ventas(df_stock_crudo=None):
     if df is None: return None
     df = _filtrar_proyectos(df)
 
-    # Tipo de cambio por fecha de venta
-    col_fecha = next((c for c in ['FechaVenta', 'FechaEntrega_Minuta'] if c in df.columns), None)
-    col_moneda = 'TipoMoneda' if 'TipoMoneda' in df.columns else None
-    col_precio = 'PrecioVenta' if 'PrecioVenta' in df.columns else None
+    # Unpivot: wide (1 fila=transacción) → long (1 fila=unidad)
+    df = _unpivot_ventas(df)
 
+    # Precio por unidad: TotalLista es el precio individual de cada ítem
+    if 'TotalLista' in df.columns:
+        df['PrecioVenta'] = pd.to_numeric(df['TotalLista'], errors='coerce').fillna(0)
+
+    col_fecha  = next((c for c in ['FechaVenta', 'FechaEntrega_Minuta'] if c in df.columns), None)
+    col_moneda = 'TipoMoneda' if 'TipoMoneda' in df.columns else None
+
+    # Corregir moneda: stock lookup → Sunny → Litoral
     if df_stock_crudo is not None and col_moneda:
         df = corregir_moneda_con_stock(df, df_stock_crudo)
+    df = _corregir_moneda_sunny(df)
+    df = _corregir_moneda_litoral(df)
 
-    if col_precio and col_moneda:
-        df = convertir_monedas(df, col_precio, col_moneda, col_fecha)
+    # Convertir a soles/dólares con TC histórico SUNAT por fecha de venta
+    if 'PrecioVenta' in df.columns and col_moneda:
+        df = convertir_monedas(df, 'PrecioVenta', col_moneda, col_fecha)
 
     print(f"   -> VENTAS procesadas: {len(df):,} filas")
     return df

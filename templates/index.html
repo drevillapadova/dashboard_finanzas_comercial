@@ -529,23 +529,12 @@ Chart.defaults.color       = '#8a929c';
 // ── Estado global ───────────────────────────────────────────
 let DATA   = { ventas: [], stock: [], ing_deposito: [] };
 let MONEDA = 'original';
-const FX   = 3.75; // TC fallback PEN/USD
-let STOCK_MONEDA_LOOKUP = null; // (Proyecto||NroInmueble) → 'DOLAR'|'SOLES'
+const FX = 3.75; // TC fallback (respaldo cuando PrecioSoles/PrecioDolares no disponibles)
 
-function normNro(v) {
-  let s = String(v || '').trim();
-  if (s.endsWith('.0')) s = s.slice(0, -2);
-  return s.toUpperCase();
-}
-
-function buildStockMonedaLookup() {
-  STOCK_MONEDA_LOOKUP = {};
-  DATA.stock.forEach(r => {
-    const proy = (r['Proyecto'] || '').trim().toUpperCase();
-    const nro  = normNro(r['NroInmuebleActual'] || r['NroInmueble'] || '');
-    const mon  = (r['Moneda'] || '').trim().toUpperCase();
-    if (proy && nro && mon) STOCK_MONEDA_LOOKUP[proy + '||' + nro] = mon;
-  });
+// Precio de una fila según el modo de moneda seleccionado
+function _precioFila(row) {
+  if (MONEDA === 'dolares') return parseFloat(row['PrecioDolares']) || 0;
+  return parseFloat(row['PrecioSoles']) || 0;
 }
 
 const COLORES_PROYECTO = {
@@ -571,7 +560,6 @@ async function loadData() {
     DATA.ing_deposito = csvToObjects(json.ing_deposito || []);
     document.getElementById('ultima-actualizacion').textContent =
       'Actualizado: ' + (json.ultima_actualizacion || '—');
-    buildStockMonedaLookup();
     poblarFiltroProyecto();
     poblarFiltroTipo();
     renderAll();
@@ -608,47 +596,6 @@ function getMonedaLabel() {
   return MONEDA === 'dolares' ? 'USD' : MONEDA === 'soles' ? 'Soles SUNAT' : 'Moneda original';
 }
 
-function _unitEsUSD(row, tipo, precio, nroInmueble) {
-  const proy = (row['Proyecto'] || '').toUpperCase();
-  const t    = (tipo || '').toUpperCase();
-
-  // Reglas de rango de precio (override final para Litoral estac/depósito)
-  if (proy.includes('LITORAL')) {
-    if (t.includes('COMERCI')) return true;
-    if (t.includes('ESTACION') && !t.includes('LOCAL') && !t.includes('TIENDA')) {
-      return precio >= 10000 && precio <= 29000;
-    }
-    if (t.includes('DEPOSIT') || t.includes('DEPÓSIT')) {
-      return precio >= 1700 && precio <= 3300;
-    }
-  }
-  // Sunny: precios < 600k en soles son USD
-  if (proy.includes('SUNNY') && precio > 0 && precio < 600000) return true;
-
-  // Stock lookup: fuente de verdad para el resto (ej. depas Litoral)
-  if (STOCK_MONEDA_LOOKUP && nroInmueble) {
-    const mon = STOCK_MONEDA_LOOKUP[proy + '||' + normNro(nroInmueble)];
-    if (mon !== undefined) return mon.includes('DOLAR') || mon.includes('USD');
-  }
-
-  // Fallback: TipoMoneda de la transacción
-  return (row['TipoMoneda'] || '').toLowerCase().includes('dolar');
-}
-
-function campoPrecio(row) {
-  const cols = Object.keys(row).filter(k => /^tipoinmueble_\d+$/i.test(k));
-  let s = 0, d = 0;
-  cols.forEach(tiCol => {
-    const n      = tiCol.match(/\d+$/)[0];
-    const tipo   = (row[tiCol] || '').trim();
-    const precio = parseFloat(row[`TotalLista_${n}`]) || 0;
-    const nro    = row[`NroInmueble_${n}`];
-    if (!tipo || !precio) return;
-    if (_unitEsUSD(row, tipo, precio, nro)) d += precio; else s += precio;
-  });
-  if (MONEDA === 'dolares') return d + s / FX;
-  return s + d * FX;
-}
 
 // Detecta el nombre de columna buscando patrones (case-insensitive)
 function detectCol(obj, patterns) {
@@ -693,11 +640,6 @@ function filtrarPorProyecto(arr) {
   return arr.filter(r => (r['Proyecto'] || '').trim().toUpperCase() === p.toUpperCase());
 }
 
-function _getTipoUnidad(row, n) {
-  const modelo = (row[`Modelo_${n}`] || '').trim().toUpperCase();
-  if (modelo === 'COMERCIO') return 'Comercio';
-  return (row[`TipoInmueble_${n}`] || '').trim();
-}
 
 function _getTipoCol(row) {
   if (!row) return null;
@@ -726,14 +668,7 @@ function filtrarPorTipo(arr) {
   const t = (document.getElementById('filtro-tipo').value || '').trim();
   if (!t) return arr;
   const tUp = t.toUpperCase();
-  const tiCols = arr[0] ? Object.keys(arr[0]).filter(k => /^tipoinmueble_\d+$/i.test(k)) : [];
-  if (tiCols.length) {
-    return arr.filter(r => tiCols.some(tiCol => {
-      const n = tiCol.match(/\d+$/)[0];
-      return _getTipoUnidad(r, n).toUpperCase() === tUp;
-    }));
-  }
-  const col = _getTipoCol(arr[0]);
+  const col = arr[0] ? _getTipoCol(arr[0]) : null;
   if (!col) return arr;
   return arr.filter(r => (r[col] || '').trim().toUpperCase() === tUp);
 }
@@ -826,14 +761,7 @@ function poblarFiltroTipo() {
   const seen = new Set();
   const tipos = [];
   const addTipo = t => { if (!t) return; const k = t.toUpperCase(); if (!seen.has(k)) { seen.add(k); tipos.push(t); } };
-  // Ventas: iterar todas las columnas TipoInmueble_N con corrección Comercio
-  DATA.ventas.forEach(r => {
-    Object.keys(r).filter(k => /^tipoinmueble_\d+$/i.test(k)).forEach(tiCol => {
-      addTipo(_getTipoUnidad(r, tiCol.match(/\d+$/)[0]));
-    });
-  });
-  // Stock: columna única TipoInmueble
-  DATA.stock.forEach(r => {
+  [...DATA.ventas, ...DATA.stock].forEach(r => {
     const col = _getTipoCol(r);
     if (col) addTipo((r[col] || '').trim());
   });
@@ -850,48 +778,39 @@ function poblarFiltroTipo() {
 function renderVentas() {
   // Calcular tipoMapV primero (unidades por tipo, sin filtro de tipo)
   const datosSinTipo = filtrarPorProyecto(filtrarPorFecha(DATA.ventas, 'FechaVenta'));
+  // tipoMapV: long-format — cada fila ya es una unidad
   const tipoMapV = {};
-  const tipoNumCols = datosSinTipo.length
-    ? Object.keys(datosSinTipo[0]).filter(k => /^tipoinmueble_\d+$/i.test(k))
-    : [];
   datosSinTipo.forEach(r => {
-    tipoNumCols.forEach(col => {
-      const n = col.match(/\d+$/)[0];
-      const t = _getTipoUnidad(r, n);
-      if (t) tipoMapV[t] = (tipoMapV[t] || 0) + 1;
-    });
+    const t = (r['TipoInmueble'] || '').trim();
+    if (t) tipoMapV[t] = (tipoMapV[t] || 0) + 1;
   });
 
   const datos = aplicarFiltros(DATA.ventas, 'FechaVenta');
 
-  // kpi-v-unidades: conteo de unidades (no transacciones)
   const tipoSel = (document.getElementById('filtro-tipo').value || '').trim();
+
+  // Unidades: cada fila del long-format es una unidad
   let unidades;
   if (tipoSel) {
     const entry = Object.entries(tipoMapV).find(([k]) => k.toUpperCase() === tipoSel.toUpperCase());
-    unidades = entry ? entry[1] : datos.length;
+    unidades = entry ? entry[1] : 0;
   } else {
-    // Todos: suma total de unidades de todos los tipos
-    unidades = Object.values(tipoMapV).reduce((s, n) => s + n, 0) || datos.length;
+    unidades = Object.values(tipoMapV).reduce((s, n) => s + n, 0) || datosSinTipo.length;
   }
 
-  // Monto split soles/dólares usando corrección por unidad (_unitEsUSD)
-  let montoS = 0, montoD = 0;
+  // Monto: usa columnas pre-calculadas por el ETL con TC histórico SUNAT
+  let montoS_orig = 0, montoD_orig = 0;
+  let montoSoles = 0, montoDolares = 0;
   datosSinTipo.forEach(r => {
-    tipoNumCols.forEach(tiCol => {
-      const n    = tiCol.match(/\d+$/)[0];
-      const tipo = _getTipoUnidad(r, n);
-      if (!tipo) return;
-      if (tipoSel && tipo.toUpperCase() !== tipoSel.toUpperCase()) return;
-      const precio = parseFloat(r[`TotalLista_${n}`]) || 0;
-      if (!precio) return;
-      const nro = r[`NroInmueble_${n}`];
-      if (_unitEsUSD(r, tipo, precio, nro)) montoD += precio; else montoS += precio;
-    });
+    const tipo = (r['TipoInmueble'] || '').trim();
+    if (tipoSel && tipo.toUpperCase() !== tipoSel.toUpperCase()) return;
+    const esUSD = (r['TipoMoneda'] || '').toUpperCase().includes('DOLAR') || (r['TipoMoneda'] || '').toUpperCase().includes('USD');
+    const orig  = parseFloat(r['PrecioOriginal'] || r['PrecioVenta'] || 0) || 0;
+    if (esUSD) montoD_orig += orig; else montoS_orig += orig;
+    montoSoles   += parseFloat(r['PrecioSoles'])   || (esUSD ? orig * FX : orig);
+    montoDolares += parseFloat(r['PrecioDolares']) || (esUSD ? orig : orig / FX);
   });
 
-  const montoSoles   = montoS + montoD * FX;
-  const montoDolares = montoD + montoS / FX;
   const ticket = unidades ? montoSoles / unidades : 0;
 
   document.getElementById('kpi-v-unidades').textContent = unidades.toLocaleString('es-PE');
@@ -904,17 +823,17 @@ function renderVentas() {
     cardUSD.style.display = '';
     lblMonto.textContent  = 'Monto Soles';
     lblMoneda.textContent = 'PEN original';
-    document.getElementById('kpi-v-monto').textContent     = fmt(montoS, 'soles');
-    document.getElementById('kpi-v-monto-usd').textContent = fmt(montoD, 'dolares');
+    document.getElementById('kpi-v-monto').textContent     = fmt(montoS_orig, 'soles');
+    document.getElementById('kpi-v-monto-usd').textContent = fmt(montoD_orig, 'dolares');
   } else if (MONEDA === 'dolares') {
     cardUSD.style.display = 'none';
     lblMonto.textContent  = 'Monto total';
-    lblMoneda.textContent = 'USD';
+    lblMoneda.textContent = 'USD (TC SUNAT)';
     document.getElementById('kpi-v-monto').textContent = fmt(montoDolares, 'dolares');
   } else {
     cardUSD.style.display = 'none';
     lblMonto.textContent  = 'Monto total';
-    lblMoneda.textContent = 'Soles';
+    lblMoneda.textContent = 'Soles (TC SUNAT)';
     document.getElementById('kpi-v-monto').textContent = fmt(montoSoles, 'soles');
   }
 
@@ -971,7 +890,7 @@ function renderVentas() {
   }
 
   // Chart: evolución monto mensual
-  const porMes = agruparPorMes(datos, 'FechaVenta', r => campoPrecio(r));
+  const porMes = agruparPorMes(datos, 'FechaVenta', r => _precioFila(r));
   upsertChart('chart-v-evolucion', {
     type: 'line',
     data: { labels: Object.keys(porMes), datasets: [{
@@ -1001,7 +920,7 @@ function renderVentas() {
   });
 
   // Chart: monto por proyecto
-  const porProy = agruparPorKey(datos, 'Proyecto', r => campoPrecio(r));
+  const porProy = agruparPorKey(datos, 'Proyecto', r => _precioFila(r));
   const labProy = Object.keys(porProy);
   upsertChart('chart-v-proyecto', {
     type: 'bar',
