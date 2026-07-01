@@ -882,7 +882,6 @@ function renderVentas() {
       const tipo = _getTipoUnidad(r, n);
       if (!tipo) return;
       if (tipoSel && tipo.toUpperCase() !== tipoSel.toUpperCase()) return;
-      const n      = tiCol.match(/\d+$/)[0];
       const precio = parseFloat(r[`TotalLista_${n}`]) || 0;
       if (!precio) return;
       const nro = r[`NroInmueble_${n}`];
