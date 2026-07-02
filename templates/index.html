@@ -473,25 +473,46 @@
       <!-- KPIs Cobranza -->
       <div class="kpi-row">
         <div class="kpi-card blue">
-          <div class="kpi-label">Proyectado</div>
-          <div class="kpi-val" id="kpi-fc-proyectado">—</div>
-          <div class="kpi-sub">monto programado</div>
+          <div class="kpi-label">Ventas totales</div>
+          <div class="kpi-val" id="kpi-cob-ventas">—</div>
+          <div class="kpi-sub">unidades activas</div>
         </div>
         <div class="kpi-card green">
-          <div class="kpi-label">Cobrado</div>
-          <div class="kpi-val" id="kpi-fc-cobrado">—</div>
-          <div class="kpi-sub">efectivamente recibido</div>
+          <div class="kpi-label">Monto de ventas</div>
+          <div class="kpi-val" id="kpi-cob-monto">—</div>
+          <div class="kpi-sub">precio total de venta</div>
         </div>
         <div class="kpi-card orange">
-          <div class="kpi-label">Por cobrar</div>
-          <div class="kpi-val" id="kpi-fc-porcobrar">—</div>
-          <div class="kpi-sub">saldo pendiente</div>
+          <div class="kpi-label">Monto cuota pagado</div>
+          <div class="kpi-val" id="kpi-cob-cobrado">—</div>
+          <div class="kpi-sub">efectivamente cobrado</div>
         </div>
         <div class="kpi-card purple">
-          <div class="kpi-label">Cumplimiento</div>
-          <div class="kpi-val" id="kpi-fc-cumplimiento">—</div>
-          <div class="kpi-progress-track"><div class="kpi-progress-bar" id="kpi-fc-progress"></div></div>
-          <div class="kpi-sub">avance de meta</div>
+          <div class="kpi-label">Pendiente por cobrar</div>
+          <div class="kpi-val" id="kpi-cob-pendiente">—</div>
+          <div class="kpi-sub">saldo estimado</div>
+        </div>
+      </div>
+
+      <!-- Tabla financiamiento -->
+      <div class="sub-header"><span>Estado por tipo de financiamiento</span></div>
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Financiamiento</th>
+                <th style="text-align:right">Unidades</th>
+                <th style="text-align:right">Monto total</th>
+                <th style="text-align:right">Monto cobrado</th>
+                <th style="text-align:right">Pendiente</th>
+                <th style="text-align:right">% Avance</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-cob-fin-body">
+              <tr><td colspan="6" class="table-empty">Cargando...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -949,35 +970,101 @@ function renderVentas() {
 }
 
 // ── Render Proyección & Cobranza ─────────────────────────────
-// Usa INGRESO_DEPOSITO del ETL (RepIngresoxDeposito, filtrado Etapa=VENTA)
-function renderFlujoCaja() {
-  if (!DATA.ing_deposito.length) { return; }
+function renderCobranza() {
+  // ── KPIs desde ventas ──────────────────────────────────────
+  const vFiltradas  = aplicarFiltros(DATA.ventas, null);
+  const totalUnid   = vFiltradas.length;
+  const montoVentas = vFiltradas.reduce((s, r) => s + _precioFila(r), 0);
 
-  const muestra   = DATA.ing_deposito[0];
-  const campFecha = detectCol(muestra, ['fecha','mes','periodo','vencim','programad']);
-  const campProy  = detectCol(muestra, ['programado','cuota','proyectado','previsto','presupuest','monto_prog','importe']);
-  const campCobr  = detectCol(muestra, ['cobrado','depositado','pagado','recibido','ejecutado','real','abonado']);
-  const campProj  = detectCol(muestra, ['proyecto']);
+  document.getElementById('kpi-cob-ventas').textContent = totalUnid.toLocaleString('es-PE');
+  document.getElementById('kpi-cob-monto').textContent  = fmt(montoVentas, MONEDA);
 
-  const datos = aplicarFiltros(DATA.ing_deposito, campFecha);
-  if (!datos.length) { return; }
-
-  const totalProy = datos.reduce((s, r) => s + getNum(r, campProy), 0);
-  const totalCobr = datos.reduce((s, r) => s + getNum(r, campCobr), 0);
-  const porCobrar = Math.max(0, totalProy - totalCobr);
-  const pctCumpl  = totalProy > 0 ? (totalCobr / totalProy * 100) : 0;
-
-  document.getElementById('kpi-fc-proyectado').textContent  = campProy ? fmt(totalProy, MONEDA) : '—';
-  document.getElementById('kpi-fc-cobrado').textContent     = campCobr ? fmt(totalCobr, MONEDA) : '—';
-  document.getElementById('kpi-fc-porcobrar').textContent   = (campProy && campCobr) ? fmt(porCobrar, MONEDA) : '—';
-  document.getElementById('kpi-fc-cumplimiento').textContent = (campProy && campCobr) ? pctCumpl.toFixed(1) + '%' : '—';
-  const prog = document.getElementById('kpi-fc-progress');
-  if (prog) {
-    prog.style.width = Math.min(100, pctCumpl) + '%';
-    prog.style.background = pctCumpl >= 90 ? '#19b36b' : pctCumpl >= 60 ? '#e0913a' : '#d6466f';
+  // ── Cobrado desde ing_deposito ─────────────────────────────
+  const ing = DATA.ing_deposito;
+  let campMonto = '', campFecha = '', campProy = '', campCobr = '', campProj = '', campDNI = '';
+  if (ing.length) {
+    const s   = ing[0];
+    campFecha = detectCol(s, ['fecha','mes','periodo','vencim','programad']);
+    campProy  = detectCol(s, ['programado','proyectado','previsto','presupuest','monto_prog']);
+    campCobr  = detectCol(s, ['cobrado','depositado','pagado','recibido','ejecutado','real','abonado']);
+    campMonto = campCobr || campProy;
+    campProj  = detectCol(s, ['proyecto']);
+    campDNI   = detectCol(s, ['documento','dni','ruc','identidad','titular']);
   }
 
-  // Chart 1: Monto proy vs cobrado por mes
+  const ingFiltrado  = ing.length ? aplicarFiltros(ing, campFecha) : [];
+  const totalCobrado = ingFiltrado.reduce((s, r) => s + getNum(r, campCobr), 0);
+  const pendiente    = Math.max(0, montoVentas - totalCobrado);
+
+  document.getElementById('kpi-cob-cobrado').textContent   = campCobr ? fmt(totalCobrado, MONEDA) : '—';
+  document.getElementById('kpi-cob-pendiente').textContent = campCobr ? fmt(pendiente, MONEDA) : '—';
+
+  // ── Tabla por financiamiento ───────────────────────────────
+  // Mapa DNI → TipoFinanciamiento desde ventas
+  const dniToFin = {};
+  vFiltradas.forEach(r => {
+    const dni = (r['NroDocumentoTitular'] || '').trim();
+    const fin = (r['TipoFinanciamiento']  || '').trim();
+    if (dni && fin) dniToFin[dni] = fin;
+  });
+
+  // Aggregate ventas por financiamiento
+  const finMap = {};
+  vFiltradas.forEach(r => {
+    const fin = (r['TipoFinanciamiento'] || 'Sin datos').trim() || 'Sin datos';
+    if (!finMap[fin]) finMap[fin] = { unidades: 0, monto: 0, cobrado: 0 };
+    finMap[fin].unidades++;
+    finMap[fin].monto += _precioFila(r);
+  });
+
+  // Aggregate cobrado por financiamiento via join por DNI
+  const tieneJoin = campCobr && campDNI;
+  if (tieneJoin) {
+    ingFiltrado.forEach(r => {
+      const dni = (r[campDNI] || '').trim();
+      const fin = dniToFin[dni] || null;
+      if (fin && finMap[fin]) finMap[fin].cobrado += getNum(r, campCobr);
+    });
+  }
+
+  const tbody = document.getElementById('tbl-cob-fin-body');
+  const rows  = Object.entries(finMap).sort((a, b) => b[1].monto - a[1].monto);
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Sin datos de ventas</td></tr>';
+  } else {
+    tbody.innerHTML = rows.map(([fin, d]) => {
+      const pend = Math.max(0, d.monto - d.cobrado);
+      const pct  = d.monto > 0 ? (d.cobrado / d.monto * 100) : 0;
+      const cobStr  = tieneJoin ? fmt(d.cobrado, MONEDA) : '—';
+      const pendStr = tieneJoin ? fmt(pend, MONEDA)      : '—';
+      const pctStr  = tieneJoin ? pct.toFixed(1) + '%'   : '—';
+      const barColor = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
+      const barW     = tieneJoin ? Math.min(100, pct).toFixed(1) : 0;
+      return `<tr>
+        <td>${fin}</td>
+        <td style="text-align:right">${d.unidades}</td>
+        <td style="text-align:right">${fmt(d.monto, MONEDA)}</td>
+        <td style="text-align:right">${cobStr}</td>
+        <td style="text-align:right">${pendStr}</td>
+        <td style="text-align:right;min-width:110px">
+          <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+            <div style="flex:1;height:4px;background:var(--border-2);border-radius:2px">
+              <div style="width:${barW}%;height:4px;background:${barColor};border-radius:2px"></div>
+            </div>
+            <span>${pctStr}</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Gráficos (lógica original) ─────────────────────────────
+  if (!ing.length) return;
+
+  const datos = ingFiltrado;
+  if (!datos.length) return;
+
+  // Chart 1: Monto proyectado vs cobrado por mes
   if (campFecha && (campProy || campCobr)) {
     const mProy = agruparPorMes(datos, campFecha, r => getNum(r, campProy));
     const mCobr = agruparPorMes(datos, campFecha, r => getNum(r, campCobr));
@@ -996,8 +1083,7 @@ function renderFlujoCaja() {
 
     // Chart 2: % Cumplimiento mensual
     const cumplMes = allM.map(m => {
-      const p = mProy[m] || 0;
-      const c = mCobr[m] || 0;
+      const p = mProy[m] || 0; const c = mCobr[m] || 0;
       return p > 0 ? +(c / p * 100).toFixed(1) : 0;
     });
     upsertChart('chart-fc-cumpl-mes', {
@@ -1053,7 +1139,7 @@ function renderFlujoCaja() {
 // ── Render all ───────────────────────────────────────────────
 function renderAll() {
   renderVentas();
-  renderFlujoCaja();
+  renderCobranza();
 }
 
 // ── UI handlers ──────────────────────────────────────────────
