@@ -1000,15 +1000,17 @@ function renderCobranza() {
   document.getElementById('kpi-cob-cobrado').textContent   = ing.length ? fmt(totalCobrado,   MONEDA) : '—';
   document.getElementById('kpi-cob-pendiente').textContent = ing.length ? fmt(totalPendiente, MONEDA) : '—';
 
-  // Tabla por TipoFinanciamiento directo de FLUJO_CAJA
+  // Tabla por TipoFinanciamiento — clientes = unidades unicas (NroInmueble_1 + Proyecto)
   const finMap = {};
   ingFilt.forEach(r => {
     const fin = (r['TipoFinanciamiento'] || 'Sin datos').trim() || 'Sin datos';
-    if (!finMap[fin]) finMap[fin] = { clientes: 0, cobrado: 0, pendiente: 0 };
-    finMap[fin].clientes++;
+    if (!finMap[fin]) finMap[fin] = { _keys: new Set(), clientes: 0, cobrado: 0, pendiente: 0 };
+    const uKey = String(r['NroInmueble_1'] || '').trim() + '|' + String(r['Proyecto'] || '').trim();
+    if (uKey !== '|') finMap[fin]._keys.add(uKey);
     finMap[fin].cobrado   += _conv(r['Pagos_Recibido'],   r);
     finMap[fin].pendiente += _conv(r['Saldo_Por_Cobrar'], r);
   });
+  Object.values(finMap).forEach(d => { d.clientes = d._keys.size; delete d._keys; });
 
   const tbody = document.getElementById('tbl-cob-fin-body');
   const rows  = Object.entries(finMap).sort((a, b) => (b[1].cobrado + b[1].pendiente) - (a[1].cobrado + a[1].pendiente));
