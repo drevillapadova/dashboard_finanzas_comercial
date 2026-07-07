@@ -498,23 +498,15 @@
       <div class="sub-header"><span>Estado por tipo de financiamiento</span></div>
       <div class="table-wrap">
         <div class="table-scroll">
-          <table style="table-layout:fixed;width:100%">
-            <colgroup>
-              <col style="width:auto">
-              <col style="width:80px">
-              <col style="width:150px">
-              <col style="width:150px">
-              <col style="width:150px">
-              <col style="width:160px">
-            </colgroup>
+          <table>
             <thead>
               <tr>
                 <th style="text-align:left">Financiamiento</th>
-                <th style="text-align:center">Clientes</th>
-                <th style="text-align:right">Monto total</th>
-                <th style="text-align:right">Cobrado</th>
-                <th style="text-align:right">Saldo pendiente</th>
-                <th style="text-align:center">% Avance</th>
+                <th style="text-align:center;width:70px">Clientes</th>
+                <th style="text-align:right;width:140px">Monto total</th>
+                <th style="text-align:right;width:140px">Cobrado</th>
+                <th style="text-align:right;width:140px">Saldo pendiente</th>
+                <th style="text-align:center;width:155px">% Avance</th>
               </tr>
             </thead>
             <tbody id="tbl-cob-fin-body">
@@ -985,9 +977,15 @@ function renderCobranza() {
   const montoVentas = vFiltradas.reduce((s, r) => s + _precioFila(r), 0);
 
   // Flujo caja filtrado por proyecto — excluye separaciones (FechaVenta vacía)
-  const ing     = DATA.ing_deposito;
+  const ing = DATA.ing_deposito;
+  const _tieneColFechaVenta = ing.length && 'FechaVenta' in ing[0];
   const ingFilt = ing.length
-    ? aplicarFiltros(ing, null).filter(r => (r['FechaVenta'] || '').trim() !== '')
+    ? aplicarFiltros(ing, null).filter(r => {
+        if (!_tieneColFechaVenta) return true;
+        const fv  = (r['FechaVenta']      || '').trim();
+        const fs  = (r['FechaSeparacion'] || '').trim();
+        return fv !== '' || fs === '';
+      })
     : [];
 
   // Convierte Pagos_Recibido / Saldo_Por_Cobrar / columnas mes segun Tipo_Moneda
