@@ -1015,6 +1015,11 @@ function renderCobranza() {
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Sin datos de cobranza</td></tr>';
   } else {
+    const totClientes  = rows.reduce((s, [, d]) => s + d.clientes,  0);
+    const totCobrado   = rows.reduce((s, [, d]) => s + d.cobrado,   0);
+    const totPendiente = rows.reduce((s, [, d]) => s + d.pendiente, 0);
+    const totTotal     = totCobrado + totPendiente;
+    const totPct       = totTotal > 0 ? (totCobrado / totTotal * 100) : 0;
     tbody.innerHTML = rows.map(([fin, d]) => {
       const total    = d.cobrado + d.pendiente;
       const pct      = total > 0 ? (d.cobrado / total * 100) : 0;
@@ -1034,7 +1039,21 @@ function renderCobranza() {
           </div>
         </td>
       </tr>`;
-    }).join('');
+    }).join('') + `<tr style="border-top:2px solid var(--border-2);font-weight:600;background:var(--bg)">
+      <td>Total</td>
+      <td style="text-align:right">${totClientes}</td>
+      <td style="text-align:right">${fmt(totTotal, MONEDA)}</td>
+      <td style="text-align:right">${fmt(totCobrado, MONEDA)}</td>
+      <td style="text-align:right">${fmt(totPendiente, MONEDA)}</td>
+      <td style="text-align:right;min-width:110px">
+        <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+          <div style="flex:1;height:4px;background:var(--border-2);border-radius:2px">
+            <div style="width:${Math.min(100,totPct).toFixed(1)}%;height:4px;background:var(--blue);border-radius:2px"></div>
+          </div>
+          <span>${totPct.toFixed(1)}%</span>
+        </div>
+      </td>
+    </tr>`;
   }
 
   if (!ingFilt.length) return;
