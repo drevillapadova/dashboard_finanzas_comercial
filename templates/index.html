@@ -506,7 +506,7 @@
                 <th style="text-align:right">Monto total</th>
                 <th style="text-align:right">Cobrado</th>
                 <th style="text-align:right">Saldo pendiente</th>
-                <th style="text-align:right">% Avance</th>
+                <th style="text-align:center">% Avance</th>
               </tr>
             </thead>
             <tbody id="tbl-cob-fin-body">
@@ -1034,12 +1034,12 @@ function renderCobranza() {
         <td style="text-align:right">${fmt(total, MONEDA)}</td>
         <td style="text-align:right">${fmt(d.cobrado, MONEDA)}</td>
         <td style="text-align:right">${fmt(d.pendiente, MONEDA)}</td>
-        <td style="text-align:right;min-width:110px">
-          <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
-            <div style="flex:1;height:4px;background:var(--border-2);border-radius:2px">
+        <td style="text-align:center;white-space:nowrap;width:140px">
+          <div style="display:inline-flex;align-items:center;gap:6px">
+            <div style="width:72px;height:4px;background:var(--border-2);border-radius:2px;flex-shrink:0">
               <div style="width:${Math.min(100,pct).toFixed(1)}%;height:4px;background:${barColor};border-radius:2px"></div>
             </div>
-            <span>${pct.toFixed(1)}%</span>
+            <span style="min-width:38px;text-align:right">${pct.toFixed(1)}%</span>
           </div>
         </td>
       </tr>`;
@@ -1049,12 +1049,12 @@ function renderCobranza() {
       <td style="text-align:right">${fmt(totTotal, MONEDA)}</td>
       <td style="text-align:right">${fmt(totCobrado, MONEDA)}</td>
       <td style="text-align:right">${fmt(totPendiente, MONEDA)}</td>
-      <td style="text-align:right;min-width:110px">
-        <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
-          <div style="flex:1;height:4px;background:var(--border-2);border-radius:2px">
+      <td style="text-align:center;white-space:nowrap;width:140px">
+        <div style="display:inline-flex;align-items:center;gap:6px">
+          <div style="width:72px;height:4px;background:var(--border-2);border-radius:2px;flex-shrink:0">
             <div style="width:${Math.min(100,totPct).toFixed(1)}%;height:4px;background:var(--blue);border-radius:2px"></div>
           </div>
-          <span>${totPct.toFixed(1)}%</span>
+          <span style="min-width:38px;text-align:right">${totPct.toFixed(1)}%</span>
         </div>
       </td>
     </tr>`;
