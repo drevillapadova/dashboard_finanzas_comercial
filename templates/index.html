@@ -976,9 +976,11 @@ function renderCobranza() {
   const totalUnid   = vFiltradas.length;
   const montoVentas = vFiltradas.reduce((s, r) => s + _precioFila(r), 0);
 
-  // Flujo caja filtrado por proyecto
+  // Flujo caja filtrado por proyecto — excluye separaciones (FechaVenta vacía)
   const ing     = DATA.ing_deposito;
-  const ingFilt = ing.length ? aplicarFiltros(ing, null) : [];
+  const ingFilt = ing.length
+    ? aplicarFiltros(ing, null).filter(r => (r['FechaVenta'] || '').trim() !== '')
+    : [];
 
   // Convierte Pagos_Recibido / Saldo_Por_Cobrar / columnas mes segun Tipo_Moneda
   function _esUSD(r) {
