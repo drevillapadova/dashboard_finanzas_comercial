@@ -498,11 +498,19 @@
       <div class="sub-header"><span>Estado por tipo de financiamiento</span></div>
       <div class="table-wrap">
         <div class="table-scroll">
-          <table>
+          <table style="table-layout:fixed;width:100%">
+            <colgroup>
+              <col style="width:auto">
+              <col style="width:80px">
+              <col style="width:150px">
+              <col style="width:150px">
+              <col style="width:150px">
+              <col style="width:160px">
+            </colgroup>
             <thead>
               <tr>
-                <th>Financiamiento</th>
-                <th style="text-align:right">Clientes</th>
+                <th style="text-align:left">Financiamiento</th>
+                <th style="text-align:center">Clientes</th>
                 <th style="text-align:right">Monto total</th>
                 <th style="text-align:right">Cobrado</th>
                 <th style="text-align:right">Saldo pendiente</th>
@@ -1029,32 +1037,32 @@ function renderCobranza() {
       const pct      = total > 0 ? (d.cobrado / total * 100) : 0;
       const barColor = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
       return `<tr>
-        <td>${fin}</td>
-        <td style="text-align:right">${d.clientes}</td>
+        <td style="text-align:left">${fin}</td>
+        <td style="text-align:center">${d.clientes}</td>
         <td style="text-align:right">${fmt(total, MONEDA)}</td>
         <td style="text-align:right">${fmt(d.cobrado, MONEDA)}</td>
         <td style="text-align:right">${fmt(d.pendiente, MONEDA)}</td>
-        <td style="text-align:center;white-space:nowrap;width:140px">
+        <td style="text-align:center">
           <div style="display:inline-flex;align-items:center;gap:6px">
-            <div style="width:72px;height:4px;background:var(--border-2);border-radius:2px;flex-shrink:0">
-              <div style="width:${Math.min(100,pct).toFixed(1)}%;height:4px;background:${barColor};border-radius:2px"></div>
+            <div style="width:72px;height:5px;background:var(--border-2);border-radius:3px;flex-shrink:0">
+              <div style="width:${Math.min(100,pct).toFixed(1)}%;height:5px;background:${barColor};border-radius:3px"></div>
             </div>
-            <span style="min-width:38px;text-align:right">${pct.toFixed(1)}%</span>
+            <span style="min-width:38px;text-align:right;font-variant-numeric:tabular-nums">${pct.toFixed(1)}%</span>
           </div>
         </td>
       </tr>`;
     }).join('') + `<tr style="border-top:2px solid var(--border-2);font-weight:600;background:var(--bg)">
-      <td>Total</td>
-      <td style="text-align:right">${totClientes}</td>
+      <td style="text-align:left">Total</td>
+      <td style="text-align:center">${totClientes}</td>
       <td style="text-align:right">${fmt(totTotal, MONEDA)}</td>
       <td style="text-align:right">${fmt(totCobrado, MONEDA)}</td>
       <td style="text-align:right">${fmt(totPendiente, MONEDA)}</td>
-      <td style="text-align:center;white-space:nowrap;width:140px">
+      <td style="text-align:center">
         <div style="display:inline-flex;align-items:center;gap:6px">
-          <div style="width:72px;height:4px;background:var(--border-2);border-radius:2px;flex-shrink:0">
-            <div style="width:${Math.min(100,totPct).toFixed(1)}%;height:4px;background:var(--blue);border-radius:2px"></div>
+          <div style="width:72px;height:5px;background:var(--border-2);border-radius:3px;flex-shrink:0">
+            <div style="width:${Math.min(100,totPct).toFixed(1)}%;height:5px;background:var(--blue);border-radius:3px"></div>
           </div>
-          <span style="min-width:38px;text-align:right">${totPct.toFixed(1)}%</span>
+          <span style="min-width:38px;text-align:right;font-variant-numeric:tabular-nums">${totPct.toFixed(1)}%</span>
         </div>
       </td>
     </tr>`;
