@@ -477,15 +477,25 @@
           <div class="kpi-val" id="kpi-cob-ventas">—</div>
           <div class="kpi-sub">unidades activas</div>
         </div>
-        <div class="kpi-card green">
-          <div class="kpi-label">Monto de ventas</div>
+        <div class="kpi-card green" id="kpi-cob-monto-card">
+          <div class="kpi-label" id="kpi-cob-monto-lbl">Monto de ventas</div>
           <div class="kpi-val" id="kpi-cob-monto">—</div>
-          <div class="kpi-sub">precio total de venta</div>
+          <div class="kpi-sub" id="kpi-cob-monto-sub">precio total de venta</div>
         </div>
-        <div class="kpi-card orange">
-          <div class="kpi-label">Monto cuota pagado</div>
+        <div class="kpi-card green" id="kpi-cob-monto-usd-card" style="display:none">
+          <div class="kpi-label">Monto ventas USD</div>
+          <div class="kpi-val" id="kpi-cob-monto-usd">—</div>
+          <div class="kpi-sub">USD original</div>
+        </div>
+        <div class="kpi-card orange" id="kpi-cob-cobrado-card">
+          <div class="kpi-label" id="kpi-cob-cobrado-lbl">Monto cuota pagado</div>
           <div class="kpi-val" id="kpi-cob-cobrado">—</div>
-          <div class="kpi-sub">efectivamente cobrado</div>
+          <div class="kpi-sub" id="kpi-cob-cobrado-sub">efectivamente cobrado</div>
+        </div>
+        <div class="kpi-card orange" id="kpi-cob-cobrado-usd-card" style="display:none">
+          <div class="kpi-label">Cobrado USD</div>
+          <div class="kpi-val" id="kpi-cob-cobrado-usd">—</div>
+          <div class="kpi-sub">USD original</div>
         </div>
         <div class="kpi-card purple">
           <div class="kpi-label">Pendiente por cobrar</div>
@@ -975,12 +985,16 @@ function renderCobranza() {
   const vFiltradas  = aplicarFiltros(DATA.ventas, null);
   const totalUnid   = vFiltradas.length;
   const montoVentas = vFiltradas.reduce((s, r) => s + _precioFila(r), 0);
+  const ventasSoles = vFiltradas.reduce((s, r) => s + (parseFloat(r['PrecioSoles'])   || 0), 0);
+  const ventasUSD   = vFiltradas.reduce((s, r) => s + (parseFloat(r['PrecioDolares']) || 0), 0);
+
+  document.getElementById('kpi-cob-ventas').textContent = totalUnid.toLocaleString('es-PE');
 
   // Flujo caja filtrado por proyecto
-  const ing     = DATA.ing_deposito;
-  const ingFilt = ing.length ? aplicarFiltros(ing, null) : [];
+  const ing       = DATA.ing_deposito;
+  const campFecha = ing.length ? detectCol(ing[0], ['fecha','mes','periodo','vencim','programad']) : '';
+  const ingFilt   = ing.length ? aplicarFiltros(ing, campFecha) : [];
 
-  // Convierte Pagos_Recibido / Saldo_Por_Cobrar / columnas mes segun Tipo_Moneda
   function _esUSD(r) {
     const m = (r['Tipo_Moneda'] || '').toUpperCase();
     return m.includes('DOLAR') || m.includes('USD');
@@ -992,13 +1006,47 @@ function renderCobranza() {
     return _esUSD(r) ? n * FX : n;
   }
 
-  const totalCobrado   = ingFilt.reduce((s, r) => s + _conv(r['Pagos_Recibido'],    r), 0);
-  const totalPendiente = ingFilt.reduce((s, r) => s + _conv(r['Saldo_Por_Cobrar'],  r), 0);
+  // Montos soles/USD originales (sin conversion)
+  const cobradoSoles   = ingFilt.filter(r => !_esUSD(r)).reduce((s, r) => s + (parseFloat(r['Pagos_Recibido'])   || 0), 0);
+  const cobradoUSD     = ingFilt.filter(r =>  _esUSD(r)).reduce((s, r) => s + (parseFloat(r['Pagos_Recibido'])   || 0), 0);
+  const pendienteSoles = ingFilt.filter(r => !_esUSD(r)).reduce((s, r) => s + (parseFloat(r['Saldo_Por_Cobrar']) || 0), 0);
+  const pendienteUSD   = ingFilt.filter(r =>  _esUSD(r)).reduce((s, r) => s + (parseFloat(r['Saldo_Por_Cobrar']) || 0), 0);
+  // Montos convertidos segun MONEDA seleccionada
+  const totalCobrado   = ingFilt.reduce((s, r) => s + _conv(r['Pagos_Recibido'],   r), 0);
+  const totalPendiente = ingFilt.reduce((s, r) => s + _conv(r['Saldo_Por_Cobrar'], r), 0);
 
-  document.getElementById('kpi-cob-ventas').textContent    = totalUnid.toLocaleString('es-PE');
-  document.getElementById('kpi-cob-monto').textContent     = fmt(montoVentas, MONEDA);
-  document.getElementById('kpi-cob-cobrado').textContent   = ing.length ? fmt(totalCobrado,   MONEDA) : '—';
-  document.getElementById('kpi-cob-pendiente').textContent = ing.length ? fmt(totalPendiente, MONEDA) : '—';
+  // Referencias DOM
+  const cardMontoUSD   = document.getElementById('kpi-cob-monto-usd-card');
+  const cardCobradoUSD = document.getElementById('kpi-cob-cobrado-usd-card');
+  const lblMonto       = document.getElementById('kpi-cob-monto-lbl');
+  const lblCobrado     = document.getElementById('kpi-cob-cobrado-lbl');
+  const lblMontoSub    = document.getElementById('kpi-cob-monto-sub');
+  const lblCobradoSub  = document.getElementById('kpi-cob-cobrado-sub');
+
+  if (MONEDA === 'original') {
+    // Mostrar tarjetas USD extra; soles card muestra PEN, usd card muestra USD
+    cardMontoUSD.style.display   = '';
+    cardCobradoUSD.style.display = '';
+    lblMonto.textContent    = 'Monto ventas (S/)';
+    lblMontoSub.textContent = 'PEN original';
+    lblCobrado.textContent  = 'Cobrado (S/)';
+    lblCobradoSub.textContent = 'PEN original';
+    document.getElementById('kpi-cob-monto').textContent       = fmt(ventasSoles, 'soles');
+    document.getElementById('kpi-cob-monto-usd').textContent   = fmt(ventasUSD,   'dolares');
+    document.getElementById('kpi-cob-cobrado').textContent     = ing.length ? fmt(cobradoSoles, 'soles')   : '—';
+    document.getElementById('kpi-cob-cobrado-usd').textContent = ing.length ? fmt(cobradoUSD,   'dolares') : '—';
+    document.getElementById('kpi-cob-pendiente').textContent   = ing.length ? fmt(pendienteSoles + pendienteUSD * FX, 'soles') : '—';
+  } else {
+    cardMontoUSD.style.display   = 'none';
+    cardCobradoUSD.style.display = 'none';
+    lblMonto.textContent    = 'Monto de ventas';
+    lblMontoSub.textContent = 'precio total de venta';
+    lblCobrado.textContent  = 'Monto cuota pagado';
+    lblCobradoSub.textContent = 'efectivamente cobrado';
+    document.getElementById('kpi-cob-monto').textContent     = fmt(montoVentas,    MONEDA);
+    document.getElementById('kpi-cob-cobrado').textContent   = ing.length ? fmt(totalCobrado,   MONEDA) : '—';
+    document.getElementById('kpi-cob-pendiente').textContent = ing.length ? fmt(totalPendiente, MONEDA) : '—';
+  }
 
   // Tabla por TipoFinanciamiento directo de FLUJO_CAJA
   const finMap = {};
@@ -1043,7 +1091,7 @@ function renderCobranza() {
   const MESES_COLS = ['Agosto_2025','Setiembre_2025','Octubre_2025','Novienbre_2025',
                       'Diciembre_2025','Enero_2026','Febrero_2026','Marzo_2026',
                       'Abril_2026','Mayo_2026','Junio_2026','Julio_2026'];
-  const mesCols = MESES_COLS.filter(m => ingFilt[0].hasOwnProperty(m));
+  const mesCols   = MESES_COLS.filter(m => ingFilt[0].hasOwnProperty(m));
   const mesLabels = mesCols.map(c => c.replace('_', ' '));
 
   // Chart 1: proyeccion total por mes
