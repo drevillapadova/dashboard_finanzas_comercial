@@ -502,10 +502,10 @@
             <thead>
               <tr>
                 <th>Financiamiento</th>
-                <th style="text-align:right">Unidades</th>
+                <th style="text-align:right">Clientes</th>
                 <th style="text-align:right">Monto total</th>
-                <th style="text-align:right">Monto cobrado</th>
-                <th style="text-align:right">Pendiente</th>
+                <th style="text-align:right">Cobrado</th>
+                <th style="text-align:right">Saldo pendiente</th>
                 <th style="text-align:right">% Avance</th>
               </tr>
             </thead>
@@ -519,19 +519,19 @@
       <!-- Gráficos Cobranza -->
       <div class="charts-grid">
         <div class="chart-card">
-          <h3>Monto proyectado vs cobrado — por mes</h3>
+          <h3>Proyección de cobros — por mes</h3>
           <div class="chart-wrap"><canvas id="chart-fc-monto-mes"></canvas></div>
         </div>
         <div class="chart-card">
-          <h3>% Cumplimiento mensual</h3>
+          <h3>% Avance de cobro — por proyecto</h3>
           <div class="chart-wrap"><canvas id="chart-fc-cumpl-mes"></canvas></div>
         </div>
         <div class="chart-card">
-          <h3>Proyectado vs cobrado — por proyecto</h3>
+          <h3>Cobrado vs Pendiente — por proyecto</h3>
           <div class="chart-wrap tall"><canvas id="chart-fc-proy-proj"></canvas></div>
         </div>
         <div class="chart-card">
-          <h3>Saldo por cobrar — por proyecto</h3>
+          <h3>Proyección mensual — por proyecto</h3>
           <div class="chart-wrap tall"><canvas id="chart-fc-saldo-proj"></canvas></div>
         </div>
       </div>
@@ -971,154 +971,176 @@ function renderVentas() {
 
 // ── Render Proyección & Cobranza ─────────────────────────────
 function renderCobranza() {
-  // ── KPIs desde ventas ──────────────────────────────────────
+  // KPIs desde ventas
   const vFiltradas  = aplicarFiltros(DATA.ventas, null);
   const totalUnid   = vFiltradas.length;
   const montoVentas = vFiltradas.reduce((s, r) => s + _precioFila(r), 0);
 
-  document.getElementById('kpi-cob-ventas').textContent = totalUnid.toLocaleString('es-PE');
-  document.getElementById('kpi-cob-monto').textContent  = fmt(montoVentas, MONEDA);
+  // Flujo caja filtrado por proyecto
+  const ing     = DATA.ing_deposito;
+  const ingFilt = ing.length ? aplicarFiltros(ing, null) : [];
 
-  // Cobrado desde INGRESO_DEPOSITO — columnas: Monto_Cuota_Pagado, Monto_Cuota, NroInmueble_1, Proyecto
-  const ing       = DATA.ing_deposito;
-  const campFecha = ing.length ? detectCol(ing[0], ['fecha','mes','periodo','vencim','programad']) : '';
-  const ingFiltrado = ing.length ? aplicarFiltros(ing, campFecha) : [];
+  // Convierte Pagos_Recibido / Saldo_Por_Cobrar / columnas mes segun Tipo_Moneda
+  function _esUSD(r) {
+    const m = (r['Tipo_Moneda'] || '').toUpperCase();
+    return m.includes('DOLAR') || m.includes('USD');
+  }
+  function _conv(val, r) {
+    const n = parseFloat(val) || 0;
+    if (!n) return 0;
+    if (MONEDA === 'dolares') return _esUSD(r) ? n : n / FX;
+    return _esUSD(r) ? n * FX : n;
+  }
 
-  const totalCobrado = ingFiltrado.reduce((s, r) => s + (parseFloat(r['Monto_Cuota_Pagado']) || 0), 0);
-  const pendiente    = Math.max(0, montoVentas - totalCobrado);
+  const totalCobrado   = ingFilt.reduce((s, r) => s + _conv(r['Pagos_Recibido'],    r), 0);
+  const totalPendiente = ingFilt.reduce((s, r) => s + _conv(r['Saldo_Por_Cobrar'],  r), 0);
 
-  document.getElementById('kpi-cob-cobrado').textContent   = ing.length ? fmt(totalCobrado, MONEDA) : '—';
-  document.getElementById('kpi-cob-pendiente').textContent = ing.length ? fmt(pendiente, MONEDA)    : '—';
+  document.getElementById('kpi-cob-ventas').textContent    = totalUnid.toLocaleString('es-PE');
+  document.getElementById('kpi-cob-monto').textContent     = fmt(montoVentas, MONEDA);
+  document.getElementById('kpi-cob-cobrado').textContent   = ing.length ? fmt(totalCobrado,   MONEDA) : '—';
+  document.getElementById('kpi-cob-pendiente').textContent = ing.length ? fmt(totalPendiente, MONEDA) : '—';
 
-  // Tabla: join (NroInmueble_1 + Proyecto) de ing_deposito con (NroInmueble + Proyecto) de ventas
-  const keyToFin = {};
-  vFiltradas.forEach(r => {
-    const nro  = String(r['NroInmueble'] || '').trim();
-    const proy = String(r['Proyecto']    || '').trim();
-    const fin  = (r['TipoFinanciamiento'] || 'Sin datos').trim() || 'Sin datos';
-    if (nro && proy) keyToFin[`${nro}|${proy}`] = fin;
-  });
-
+  // Tabla por TipoFinanciamiento directo de FLUJO_CAJA
   const finMap = {};
-  vFiltradas.forEach(r => {
+  ingFilt.forEach(r => {
     const fin = (r['TipoFinanciamiento'] || 'Sin datos').trim() || 'Sin datos';
-    if (!finMap[fin]) finMap[fin] = { unidades: 0, monto: 0, cobrado: 0 };
-    finMap[fin].unidades++;
-    finMap[fin].monto += _precioFila(r);
+    if (!finMap[fin]) finMap[fin] = { clientes: 0, cobrado: 0, pendiente: 0 };
+    finMap[fin].clientes++;
+    finMap[fin].cobrado   += _conv(r['Pagos_Recibido'],   r);
+    finMap[fin].pendiente += _conv(r['Saldo_Por_Cobrar'], r);
   });
 
-  ingFiltrado.forEach(r => {
-    const nro  = String(r['NroInmueble_1'] || '').trim();
-    const proy = String(r['Proyecto']      || '').trim();
-    const fin  = keyToFin[`${nro}|${proy}`] || null;
-    if (fin && finMap[fin]) finMap[fin].cobrado += parseFloat(r['Monto_Cuota_Pagado']) || 0;
-  });
-
-  const tbody   = document.getElementById('tbl-cob-fin-body');
-  const rows    = Object.entries(finMap).sort((a, b) => b[1].monto - a[1].monto);
-  const hasCobr = ing.length > 0;
+  const tbody = document.getElementById('tbl-cob-fin-body');
+  const rows  = Object.entries(finMap).sort((a, b) => (b[1].cobrado + b[1].pendiente) - (a[1].cobrado + a[1].pendiente));
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Sin datos de ventas</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Sin datos de cobranza</td></tr>';
   } else {
     tbody.innerHTML = rows.map(([fin, d]) => {
-      const pend     = Math.max(0, d.monto - d.cobrado);
-      const pct      = d.monto > 0 ? (d.cobrado / d.monto * 100) : 0;
-      const cobStr   = hasCobr ? fmt(d.cobrado, MONEDA) : '—';
-      const pendStr  = hasCobr ? fmt(pend, MONEDA)      : '—';
-      const pctStr   = hasCobr ? pct.toFixed(1) + '%'   : '—';
+      const total    = d.cobrado + d.pendiente;
+      const pct      = total > 0 ? (d.cobrado / total * 100) : 0;
       const barColor = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
-      const barW     = hasCobr ? Math.min(100, pct).toFixed(1) : 0;
       return `<tr>
         <td>${fin}</td>
-        <td style="text-align:right">${d.unidades}</td>
-        <td style="text-align:right">${fmt(d.monto, MONEDA)}</td>
-        <td style="text-align:right">${cobStr}</td>
-        <td style="text-align:right">${pendStr}</td>
+        <td style="text-align:right">${d.clientes}</td>
+        <td style="text-align:right">${fmt(total, MONEDA)}</td>
+        <td style="text-align:right">${fmt(d.cobrado, MONEDA)}</td>
+        <td style="text-align:right">${fmt(d.pendiente, MONEDA)}</td>
         <td style="text-align:right;min-width:110px">
           <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
             <div style="flex:1;height:4px;background:var(--border-2);border-radius:2px">
-              <div style="width:${barW}%;height:4px;background:${barColor};border-radius:2px"></div>
+              <div style="width:${Math.min(100,pct).toFixed(1)}%;height:4px;background:${barColor};border-radius:2px"></div>
             </div>
-            <span>${pctStr}</span>
+            <span>${pct.toFixed(1)}%</span>
           </div>
         </td>
       </tr>`;
     }).join('');
   }
 
-  // Graficos: Monto_Cuota = programado, Monto_Cuota_Pagado = cobrado
-  if (!ingFiltrado.length) return;
+  if (!ingFilt.length) return;
 
-  if (campFecha) {
-    const mProy = agruparPorMes(ingFiltrado, campFecha, r => parseFloat(r['Monto_Cuota'])        || 0);
-    const mCobr = agruparPorMes(ingFiltrado, campFecha, r => parseFloat(r['Monto_Cuota_Pagado']) || 0);
-    const allM  = [...new Set([...Object.keys(mProy), ...Object.keys(mCobr)])].sort();
+  // Columnas de proyeccion mensual
+  const MESES_COLS = ['Agosto_2025','Setiembre_2025','Octubre_2025','Novienbre_2025',
+                      'Diciembre_2025','Enero_2026','Febrero_2026','Marzo_2026',
+                      'Abril_2026','Mayo_2026','Junio_2026','Julio_2026'];
+  const mesCols = MESES_COLS.filter(m => ingFilt[0].hasOwnProperty(m));
+  const mesLabels = mesCols.map(c => c.replace('_', ' '));
+
+  // Chart 1: proyeccion total por mes
+  if (mesCols.length) {
+    const mesData = mesCols.map(col => ingFilt.reduce((s, r) => s + _conv(r[col], r), 0));
     upsertChart('chart-fc-monto-mes', {
       type: 'bar',
-      data: { labels: allM, datasets: [
-        { label: 'Cuota programada', data: allM.map(m => mProy[m] || 0), backgroundColor: 'rgba(47,109,246,0.75)', borderRadius: 4, borderSkipped: false },
-        { label: 'Cuota pagada',     data: allM.map(m => mCobr[m] || 0), backgroundColor: 'rgba(25,179,107,0.75)',  borderRadius: 4, borderSkipped: false }
-      ]},
+      data: { labels: mesLabels, datasets: [{
+        label: 'Proyeccion cobro',
+        data: mesData,
+        backgroundColor: 'rgba(47,109,246,0.75)',
+        borderRadius: 4, borderSkipped: false
+      }]},
       options: { responsive: true, maintainAspectRatio: false,
         plugins: { legend: { position: 'bottom', labels: { padding: 12, boxWidth: 10 } } },
         scales: { y: { grid: { color: '#e9ebee' } }, x: { grid: { display: false } } }
       }
     });
+  }
 
-    const cumplMes = allM.map(m => {
-      const p = mProy[m] || 0; const c = mCobr[m] || 0;
-      return p > 0 ? +(c / p * 100).toFixed(1) : 0;
+  // Chart 2: % avance por proyecto
+  const campProj = detectCol(ingFilt[0], ['proyecto']);
+  if (campProj) {
+    const projMap = {};
+    ingFilt.forEach(r => {
+      const p = (r[campProj] || 'Sin dato').trim();
+      if (!projMap[p]) projMap[p] = { cobrado: 0, pendiente: 0 };
+      projMap[p].cobrado   += _conv(r['Pagos_Recibido'],   r);
+      projMap[p].pendiente += _conv(r['Saldo_Por_Cobrar'], r);
     });
+    const labPjs  = Object.keys(projMap);
+    const avances = labPjs.map(p => {
+      const t = projMap[p].cobrado + projMap[p].pendiente;
+      return t > 0 ? +(projMap[p].cobrado / t * 100).toFixed(1) : 0;
+    });
+
     upsertChart('chart-fc-cumpl-mes', {
-      type: 'line',
-      data: { labels: allM, datasets: [
-        { label: '% Cumplimiento', data: cumplMes,
-          borderColor: '#19b36b', backgroundColor: 'rgba(25,179,107,0.08)',
-          fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: '#19b36b' },
-        { label: 'Meta 100%', data: allM.map(() => 100),
-          borderColor: '#e0913a', borderDash: [5, 5], pointRadius: 0, fill: false }
-      ]},
-      options: { responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { padding: 12, boxWidth: 10 } } },
+      type: 'bar',
+      data: { labels: labPjs, datasets: [{
+        label: '% Avance cobro',
+        data: avances,
+        backgroundColor: avances.map(v => v >= 80 ? 'rgba(25,179,107,0.75)' : v >= 50 ? 'rgba(224,145,58,0.75)' : 'rgba(214,70,111,0.75)'),
+        borderRadius: 4, borderSkipped: false
+      }]},
+      options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        plugins: { legend: { display: false } },
         scales: {
-          y: { min: 0, grid: { color: '#e9ebee' }, ticks: { callback: v => v + '%' } },
-          x: { grid: { display: false } }
+          x: { min: 0, max: 100, grid: { color: '#e9ebee' }, ticks: { callback: v => v + '%' } },
+          y: { grid: { display: false } }
         }
       }
     });
-  }
 
-  const campProj = detectCol(ingFiltrado[0], ['proyecto']);
-  if (campProj) {
-    const mapProy = agruparPorKey(ingFiltrado, campProj, r => parseFloat(r['Monto_Cuota'])        || 0);
-    const mapCobr = agruparPorKey(ingFiltrado, campProj, r => parseFloat(r['Monto_Cuota_Pagado']) || 0);
-    const labPjs  = Object.keys(mapProy).length ? Object.keys(mapProy) : Object.keys(mapCobr);
-
+    // Chart 3: cobrado vs pendiente por proyecto (stacked)
     upsertChart('chart-fc-proy-proj', {
       type: 'bar',
       data: { labels: labPjs, datasets: [
-        { label: 'Cuota prog.', data: labPjs.map(p => mapProy[p] || 0), backgroundColor: 'rgba(47,109,246,0.75)', borderRadius: 4, borderSkipped: false },
-        { label: 'Cuota pag.',  data: labPjs.map(p => mapCobr[p] || 0), backgroundColor: 'rgba(25,179,107,0.75)',  borderRadius: 4, borderSkipped: false }
+        { label: 'Cobrado',   data: labPjs.map(p => projMap[p].cobrado),   backgroundColor: 'rgba(25,179,107,0.75)', borderRadius: 0, borderSkipped: false },
+        { label: 'Pendiente', data: labPjs.map(p => projMap[p].pendiente), backgroundColor: 'rgba(224,145,58,0.75)', borderRadius: 4, borderSkipped: false }
       ]},
       options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
         plugins: { legend: { position: 'bottom', labels: { padding: 12, boxWidth: 10 } } },
-        scales: { x: { grid: { color: '#e9ebee' } }, y: { grid: { display: false } } }
+        scales: {
+          x: { stacked: true, grid: { color: '#e9ebee' } },
+          y: { stacked: true, grid: { display: false } }
+        }
       }
     });
 
-    const saldos = labPjs.map(p => Math.max(0, (mapProy[p] || 0) - (mapCobr[p] || 0)));
-    upsertChart('chart-fc-saldo-proj', {
-      type: 'bar',
-      data: { labels: labPjs, datasets: [{
-        label: 'Por cobrar', data: saldos,
-        backgroundColor: '#e0913a', borderRadius: 4, borderSkipped: false
-      }]},
-      options: { ...CHART_OPTS_BAR_H }
-    });
+    // Chart 4: proyeccion mensual stacked por proyecto
+    if (mesCols.length) {
+      const PALETTE = ['rgba(47,109,246,0.8)','rgba(25,179,107,0.8)','rgba(214,70,111,0.8)',
+                       'rgba(224,145,58,0.8)','rgba(123,91,214,0.8)','rgba(154,161,171,0.8)'];
+      const datasets = labPjs.map((proj, i) => ({
+        label: proj,
+        data: mesCols.map(col =>
+          ingFilt.filter(r => (r[campProj] || '').trim() === proj)
+                 .reduce((s, r) => s + _conv(r[col], r), 0)
+        ),
+        backgroundColor: PALETTE[i % PALETTE.length],
+        borderRadius: 2, borderSkipped: false
+      }));
+      upsertChart('chart-fc-saldo-proj', {
+        type: 'bar',
+        data: { labels: mesLabels, datasets },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { padding: 10, boxWidth: 10 } } },
+          scales: {
+            y: { stacked: true, grid: { color: '#e9ebee' } },
+            x: { stacked: true, grid: { display: false } }
+          }
+        }
+      });
+    }
   }
 
 }
-
 // ── Render all ───────────────────────────────────────────────
 function renderAll() {
   renderVentas();
