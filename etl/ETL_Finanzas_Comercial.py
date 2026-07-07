@@ -393,56 +393,71 @@ def execute_ventas_extraction(driver, wait):
 # EXTRACCIÓN — FLUJO DE CAJA (por año)
 # ============================================================
 
-def execute_flujo_caja_año(driver, wait, año):
+def _set_filtros_flujo_caja(driver):
     """
-    Descarga el reporte de Flujo de Caja para un año.
-    URL: https://v4.evolta.pe/Reportes/RepFlujoCaga/Index
-    La lógica replica ingreso_deposito: filtro de fechas + exportar.
-    NOTA: Revisar en Evolta si el reporte tiene filtros adicionales
-    (por proyecto, tipo de movimiento, etc.) y agregar aquí si es necesario.
+    Configura los dropdowns del reporte Flujo de Caja en Evolta:
+    Proyecto=TODOS, Etapa=TODOS, Año Ini=2023/Enero, Año Fin=actual/mes actual.
     """
-    print(f"\n>> [FLUJO_CAJA {año}]")
+    now   = datetime.now()
+    MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+             'Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre']
+    año_fin = str(now.year)
+    mes_fin = MESES[now.month - 1]
+
+    selects  = driver.find_elements(By.TAG_NAME, "select")
+    año_sels, mes_sels = [], []
+
+    for sel in selects:
+        opts   = [o.text.strip() for o in sel.find_elements(By.TAG_NAME, "option")]
+        opts_u = [o.upper() for o in opts]
+        if any(str(y) in opts for y in range(2020, 2030)):
+            año_sels.append(sel)
+        elif any(m in opts for m in MESES):
+            mes_sels.append(sel)
+        elif 'TODOS' in opts_u or 'TODO' in opts_u or 'ETAPA COMERCIAL' in opts_u:
+            for txt in ['TODOS', 'Todos', 'Todo']:
+                try: Select(sel).select_by_visible_text(txt); time.sleep(0.3); break
+                except: pass
+
+    if año_sels:
+        try: Select(año_sels[0]).select_by_visible_text('2023'); time.sleep(0.3)
+        except: pass
+    if len(año_sels) >= 2:
+        try: Select(año_sels[1]).select_by_visible_text(año_fin); time.sleep(0.3)
+        except: pass
+    if mes_sels:
+        try: Select(mes_sels[0]).select_by_visible_text('Enero'); time.sleep(0.3)
+        except: pass
+    if len(mes_sels) >= 2:
+        try: Select(mes_sels[1]).select_by_visible_text(mes_fin); time.sleep(0.3)
+        except: pass
+
+    print(f"   -> Filtros: Enero 2023 - {mes_fin} {año_fin}")
+
+
+def execute_flujo_caja_extraction(driver, wait):
+    """Descarga unica del reporte Flujo de Caja con rango 2023 - hoy."""
+    print("\n" + "="*60)
+    print(">> [FLUJO_CAJA] Descarga unica (Ene 2023 - hoy)")
+    for f in glob.glob(os.path.join(DOWNLOAD_DIR_FLUJO, "*.*")):
+        try: os.remove(f)
+        except: pass
+
     driver.get(URL_REPORTE_FLUJO_CAJA)
     time.sleep(4); dismiss_popup(driver)
-
-    # Seleccionar proyecto TODOS si hay dropdown
-    try:
-        selects = driver.find_elements(By.TAG_NAME, "select")
-        for sel in selects:
-            opts = [o.text.strip().upper() for o in sel.find_elements(By.TAG_NAME, "option")]
-            if "TODOS" in opts or "TODO" in opts:
-                try: Select(sel).select_by_visible_text("Todos")
-                except: Select(sel).select_by_index(0)
-                time.sleep(0.5)
-                break
-    except: pass
-
-    fecha_inicio = f"01/01/{año}"
-    fecha_fin = f"31/12/{año}" if año < datetime.now().year else datetime.now().strftime("%d/%m/%Y")
-    _set_fechas_js(driver, fecha_inicio, fecha_fin)
+    _set_filtros_flujo_caja(driver)
 
     existing = set(glob.glob(os.path.join(DOWNLOAD_DIR_FLUJO, "*.*")))
     _click_exportar(driver, wait)
     time.sleep(5)
     archivo = esperar_descarga_nueva(DOWNLOAD_DIR_FLUJO, existing, timeout=480)
     if archivo:
-        ext = os.path.splitext(archivo)[1].lower()
-        dest = os.path.join(DOWNLOAD_DIR_FLUJO, f"ReporteFlujoCaja{año}{ext}")
+        ext  = os.path.splitext(archivo)[1].lower()
+        dest = os.path.join(DOWNLOAD_DIR_FLUJO, f"ReporteFlujoCajaTotal{ext}")
         _mover_descarga(archivo, dest)
     else:
-        print(f"   !! No se descargó flujo_caja {año}")
-        # Guardar screenshot para debug
-        driver.save_screenshot(os.path.join(DOWNLOAD_DIR_FLUJO, f"debug_flujo_{año}.png"))
-
-def execute_flujo_caja_extraction(driver, wait):
-    print("\n" + "="*60)
-    print(">> [FLUJO_CAJA] Iniciando descarga por año")
-    for f in glob.glob(os.path.join(DOWNLOAD_DIR_FLUJO, "*.*")):
-        try: os.remove(f)
-        except: pass
-    for año in AÑOS:
-        try: execute_flujo_caja_año(driver, wait, año); time.sleep(2)
-        except Exception as e: print(f"   !! Error flujo_caja {año}: {e}")
+        print("   !! No se descargo flujo_caja")
+        driver.save_screenshot(os.path.join(DOWNLOAD_DIR_FLUJO, "debug_flujo_total.png"))
 
 
 # ============================================================
@@ -706,7 +721,17 @@ def process_flujo_caja():
     Ajustar col_monto / col_moneda / col_fecha una vez que se vea el Excel.
     """
     print("\n>> [TRANSFORM FLUJO_CAJA]")
-    df = _leer_por_año(DOWNLOAD_DIR_FLUJO, "ReporteFlujoCaja", AÑOS)
+    df = None
+    for ext in ['.csv', '.xlsx']:
+        ruta = os.path.join(DOWNLOAD_DIR_FLUJO, f"ReporteFlujoCajaTotal{ext}")
+        if not os.path.exists(ruta):
+            continue
+        try:
+            df = pd.read_csv(ruta, encoding='utf-8', low_memory=False) if ext == '.csv' else pd.read_excel(ruta)
+            print(f"   -> ReporteFlujoCajaTotal: {len(df):,} filas")
+            break
+        except Exception as e:
+            print(f"   !! Error leyendo {ruta}: {e}")
     if df is None:
         print("   !! Sin datos de flujo de caja todavía")
         return None
