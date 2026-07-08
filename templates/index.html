@@ -1008,25 +1008,50 @@ function renderCobranza() {
     return _esUSD(r) ? n * FX : n;
   }
 
-  const totalCobrado   = ingFilt.reduce((s, r) => s + _conv(r['Pagos_Recibido'],    r), 0);
-  const totalPendiente = ingFilt.reduce((s, r) => s + _conv(r['Saldo_Por_Cobrar'],  r), 0);
+  // Totales separados por moneda (para modo original)
+  const cobradoS   = ingFilt.filter(r => !_esUSD(r)).reduce((s, r) => s + (parseFloat(r['Pagos_Recibido'])   || 0), 0);
+  const cobradoD   = ingFilt.filter(r =>  _esUSD(r)).reduce((s, r) => s + (parseFloat(r['Pagos_Recibido'])   || 0), 0);
+  const pendienteS = ingFilt.filter(r => !_esUSD(r)).reduce((s, r) => s + (parseFloat(r['Saldo_Por_Cobrar']) || 0), 0);
+  const pendienteD = ingFilt.filter(r =>  _esUSD(r)).reduce((s, r) => s + (parseFloat(r['Saldo_Por_Cobrar']) || 0), 0);
+  const totalCobrado   = MONEDA === 'dolares' ? cobradoS/FX   + cobradoD   : cobradoS   + cobradoD*FX;
+  const totalPendiente = MONEDA === 'dolares' ? pendienteS/FX + pendienteD : pendienteS + pendienteD*FX;
 
-  document.getElementById('kpi-cob-ventas').textContent    = totalUnid.toLocaleString('es-PE');
-  document.getElementById('kpi-cob-monto').textContent     = fmt(montoVentas, MONEDA);
-  document.getElementById('kpi-cob-cobrado').textContent   = ing.length ? fmt(totalCobrado,   MONEDA) : '—';
-  document.getElementById('kpi-cob-pendiente').textContent = ing.length ? fmt(totalPendiente, MONEDA) : '—';
+  // Formatea un par soles+usd según MONEDA actual
+  function _fmtMix(s, d) {
+    if (MONEDA !== 'original') {
+      return fmt(MONEDA === 'dolares' ? s/FX + d : s + d*FX, MONEDA);
+    }
+    const parts = [];
+    if (s > 0.005) parts.push(fmt(s, 'soles'));
+    if (d > 0.005) parts.push(fmt(d, 'dolares'));
+    return parts.join('<br>') || fmt(0, 'soles');
+  }
 
-  // Tabla por TipoFinanciamiento — clientes = unidades unicas (NroInmueble_1 + Proyecto)
+  document.getElementById('kpi-cob-ventas').textContent = totalUnid.toLocaleString('es-PE');
+  document.getElementById('kpi-cob-monto').textContent  = fmt(montoVentas, MONEDA);
+  document.getElementById('kpi-cob-cobrado').innerHTML   = ing.length ? _fmtMix(cobradoS,   cobradoD)   : '—';
+  document.getElementById('kpi-cob-pendiente').innerHTML = ing.length ? _fmtMix(pendienteS, pendienteD) : '—';
+
+  // Tabla por TipoFinanciamiento — rastrear soles y USD por separado
   const finMap = {};
   ingFilt.forEach(r => {
     const fin = (r['TipoFinanciamiento'] || 'Sin datos').trim() || 'Sin datos';
-    if (!finMap[fin]) finMap[fin] = { _keys: new Set(), clientes: 0, cobrado: 0, pendiente: 0 };
+    if (!finMap[fin]) finMap[fin] = { _keys: new Set(), clientes: 0, cobS: 0, cobD: 0, penS: 0, penD: 0 };
     const uKey = String(r['NroInmueble_1'] || '').trim() + '|' + String(r['Proyecto'] || '').trim();
     if (uKey !== '|') finMap[fin]._keys.add(uKey);
-    finMap[fin].cobrado   += _conv(r['Pagos_Recibido'],   r);
-    finMap[fin].pendiente += _conv(r['Saldo_Por_Cobrar'], r);
+    if (_esUSD(r)) {
+      finMap[fin].cobD += parseFloat(r['Pagos_Recibido'])   || 0;
+      finMap[fin].penD += parseFloat(r['Saldo_Por_Cobrar']) || 0;
+    } else {
+      finMap[fin].cobS += parseFloat(r['Pagos_Recibido'])   || 0;
+      finMap[fin].penS += parseFloat(r['Saldo_Por_Cobrar']) || 0;
+    }
   });
-  Object.values(finMap).forEach(d => { d.clientes = d._keys.size; delete d._keys; });
+  Object.values(finMap).forEach(d => {
+    d.clientes = d._keys.size; delete d._keys;
+    d.cobrado   = MONEDA === 'dolares' ? d.cobS/FX + d.cobD : d.cobS + d.cobD*FX;
+    d.pendiente = MONEDA === 'dolares' ? d.penS/FX + d.penD : d.penS + d.penD*FX;
+  });
 
   const tbody = document.getElementById('tbl-cob-fin-body');
   const rows  = Object.entries(finMap).sort((a, b) => (b[1].cobrado + b[1].pendiente) - (a[1].cobrado + a[1].pendiente));
@@ -1034,10 +1059,15 @@ function renderCobranza() {
     tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Sin datos de cobranza</td></tr>';
   } else {
     const totClientes  = rows.reduce((s, [, d]) => s + d.clientes,  0);
+    const totCobS = rows.reduce((s, [, d]) => s + d.cobS, 0);
+    const totCobD = rows.reduce((s, [, d]) => s + d.cobD, 0);
+    const totPenS = rows.reduce((s, [, d]) => s + d.penS, 0);
+    const totPenD = rows.reduce((s, [, d]) => s + d.penD, 0);
     const totCobrado   = rows.reduce((s, [, d]) => s + d.cobrado,   0);
     const totPendiente = rows.reduce((s, [, d]) => s + d.pendiente, 0);
     const totTotal     = totCobrado + totPendiente;
     const totPct       = totTotal > 0 ? (totCobrado / totTotal * 100) : 0;
+    const tdStyle      = MONEDA === 'original' ? 'text-align:right;line-height:1.6' : 'text-align:right';
     tbody.innerHTML = rows.map(([fin, d]) => {
       const total    = d.cobrado + d.pendiente;
       const pct      = total > 0 ? (d.cobrado / total * 100) : 0;
@@ -1045,9 +1075,9 @@ function renderCobranza() {
       return `<tr>
         <td style="text-align:left;overflow:hidden;text-overflow:ellipsis" title="${fin}">${fin}</td>
         <td style="text-align:center">${d.clientes}</td>
-        <td style="text-align:right">${fmt(total, MONEDA)}</td>
-        <td style="text-align:right">${fmt(d.cobrado, MONEDA)}</td>
-        <td style="text-align:right">${fmt(d.pendiente, MONEDA)}</td>
+        <td style="${tdStyle}">${_fmtMix(d.cobS + d.penS, d.cobD + d.penD)}</td>
+        <td style="${tdStyle}">${_fmtMix(d.cobS, d.cobD)}</td>
+        <td style="${tdStyle}">${_fmtMix(d.penS, d.penD)}</td>
         <td style="text-align:center">
           <div style="display:inline-flex;align-items:center;gap:6px">
             <div style="width:72px;height:5px;background:var(--border-2);border-radius:3px;flex-shrink:0">
@@ -1060,9 +1090,9 @@ function renderCobranza() {
     }).join('') + `<tr style="border-top:2px solid var(--border-2);font-weight:600;background:var(--bg)">
       <td style="text-align:left;overflow:hidden;text-overflow:ellipsis">Total</td>
       <td style="text-align:center">${totClientes}</td>
-      <td style="text-align:right">${fmt(totTotal, MONEDA)}</td>
-      <td style="text-align:right">${fmt(totCobrado, MONEDA)}</td>
-      <td style="text-align:right">${fmt(totPendiente, MONEDA)}</td>
+      <td style="${tdStyle}">${_fmtMix(totCobS + totPenS, totCobD + totPenD)}</td>
+      <td style="${tdStyle}">${_fmtMix(totCobS, totCobD)}</td>
+      <td style="${tdStyle}">${_fmtMix(totPenS, totPenD)}</td>
       <td style="text-align:center">
         <div style="display:inline-flex;align-items:center;gap:6px">
           <div style="width:72px;height:5px;background:var(--border-2);border-radius:3px;flex-shrink:0">
