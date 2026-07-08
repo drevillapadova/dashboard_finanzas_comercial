@@ -500,20 +500,22 @@
         <div class="table-scroll">
           <table style="table-layout:fixed;width:100%">
             <colgroup>
-              <col style="width:24%">
-              <col style="width:8%">
-              <col style="width:17%">
-              <col style="width:17%">
-              <col style="width:17%">
-              <col style="width:17%">
+              <col style="width:22%">
+              <col style="width:7%">
+              <col style="width:13%">
+              <col style="width:13%">
+              <col style="width:13%">
+              <col style="width:13%">
+              <col style="width:19%">
             </colgroup>
             <thead>
               <tr>
                 <th style="text-align:left">Financiamiento</th>
                 <th style="text-align:center">Clientes</th>
-                <th style="text-align:right">Monto total</th>
-                <th style="text-align:right">Cobrado</th>
-                <th style="text-align:right">Saldo pendiente</th>
+                <th style="text-align:right">Cobrado S/</th>
+                <th style="text-align:right">Cobrado $</th>
+                <th style="text-align:right">Pendiente S/</th>
+                <th style="text-align:right">Pendiente $</th>
                 <th style="text-align:center">% Avance</th>
               </tr>
             </thead>
@@ -1056,7 +1058,7 @@ function renderCobranza() {
   const tbody = document.getElementById('tbl-cob-fin-body');
   const rows  = Object.entries(finMap).sort((a, b) => (b[1].cobrado + b[1].pendiente) - (a[1].cobrado + a[1].pendiente));
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Sin datos de cobranza</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Sin datos de cobranza</td></tr>';
   } else {
     const totClientes  = rows.reduce((s, [, d]) => s + d.clientes,  0);
     const totCobS = rows.reduce((s, [, d]) => s + d.cobS, 0);
@@ -1067,38 +1069,40 @@ function renderCobranza() {
     const totPendiente = rows.reduce((s, [, d]) => s + d.pendiente, 0);
     const totTotal     = totCobrado + totPendiente;
     const totPct       = totTotal > 0 ? (totCobrado / totTotal * 100) : 0;
-    const tdStyle      = MONEDA === 'original' ? 'text-align:right;line-height:1.6' : 'text-align:right';
+    const fS = n => fmt(n, 'soles');
+    const fD = n => fmt(n, 'dolares');
     tbody.innerHTML = rows.map(([fin, d]) => {
-      const total    = d.cobrado + d.pendiente;
-      const pct      = total > 0 ? (d.cobrado / total * 100) : 0;
+      const pct      = (d.cobrado + d.pendiente) > 0 ? (d.cobrado / (d.cobrado + d.pendiente) * 100) : 0;
       const barColor = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
       return `<tr>
         <td style="text-align:left;overflow:hidden;text-overflow:ellipsis" title="${fin}">${fin}</td>
         <td style="text-align:center">${d.clientes}</td>
-        <td style="${tdStyle}">${_fmtMix(d.cobS + d.penS, d.cobD + d.penD)}</td>
-        <td style="${tdStyle}">${_fmtMix(d.cobS, d.cobD)}</td>
-        <td style="${tdStyle}">${_fmtMix(d.penS, d.penD)}</td>
+        <td style="text-align:right">${fS(d.cobS)}</td>
+        <td style="text-align:right">${fD(d.cobD)}</td>
+        <td style="text-align:right">${fS(d.penS)}</td>
+        <td style="text-align:right">${fD(d.penD)}</td>
         <td style="text-align:center">
           <div style="display:inline-flex;align-items:center;gap:6px">
-            <div style="width:72px;height:5px;background:var(--border-2);border-radius:3px;flex-shrink:0">
+            <div style="width:64px;height:5px;background:var(--border-2);border-radius:3px;flex-shrink:0">
               <div style="width:${Math.min(100,pct).toFixed(1)}%;height:5px;background:${barColor};border-radius:3px"></div>
             </div>
-            <span style="min-width:38px;text-align:right;font-variant-numeric:tabular-nums">${pct.toFixed(1)}%</span>
+            <span style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums">${pct.toFixed(1)}%</span>
           </div>
         </td>
       </tr>`;
     }).join('') + `<tr style="border-top:2px solid var(--border-2);font-weight:600;background:var(--bg)">
-      <td style="text-align:left;overflow:hidden;text-overflow:ellipsis">Total</td>
+      <td style="text-align:left">Total</td>
       <td style="text-align:center">${totClientes}</td>
-      <td style="${tdStyle}">${_fmtMix(totCobS + totPenS, totCobD + totPenD)}</td>
-      <td style="${tdStyle}">${_fmtMix(totCobS, totCobD)}</td>
-      <td style="${tdStyle}">${_fmtMix(totPenS, totPenD)}</td>
+      <td style="text-align:right">${fS(totCobS)}</td>
+      <td style="text-align:right">${fD(totCobD)}</td>
+      <td style="text-align:right">${fS(totPenS)}</td>
+      <td style="text-align:right">${fD(totPenD)}</td>
       <td style="text-align:center">
         <div style="display:inline-flex;align-items:center;gap:6px">
-          <div style="width:72px;height:5px;background:var(--border-2);border-radius:3px;flex-shrink:0">
+          <div style="width:64px;height:5px;background:var(--border-2);border-radius:3px;flex-shrink:0">
             <div style="width:${Math.min(100,totPct).toFixed(1)}%;height:5px;background:var(--blue);border-radius:3px"></div>
           </div>
-          <span style="min-width:38px;text-align:right;font-variant-numeric:tabular-nums">${totPct.toFixed(1)}%</span>
+          <span style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums">${totPct.toFixed(1)}%</span>
         </div>
       </td>
     </tr>`;
