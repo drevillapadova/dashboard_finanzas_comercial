@@ -1060,19 +1060,22 @@ function renderCobranza() {
     d.pendiente = MONEDA === 'dolares' ? d.penS/FX + d.penD : d.penS + d.penD*FX;
   });
 
-  // Colgroup + thead fijos: siempre 7 columnas (S/ y $ siempre visibles)
+  // Columnas de tabla responden a MONEDA (igual que KPI cards)
+  const showS = MONEDA !== 'dolares';
+  const showD = MONEDA !== 'soles';
+  const nCols = 2 + (showS ? 2 : 0) + (showD ? 2 : 0) + 1;
   const tblEl = document.getElementById('tbl-cob-fin');
   const oldCg = tblEl.querySelector('colgroup');
   if (oldCg) tblEl.removeChild(oldCg);
-  tblEl.insertAdjacentHTML('afterbegin',
-    '<colgroup><col style="width:22%"><col style="width:7%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:19%"></colgroup>');
-  document.getElementById('tbl-cob-fin-head').innerHTML =
-    '<tr><th style="text-align:left">Financiamiento</th><th style="text-align:center">Clientes</th>' +
-    '<th style="text-align:right">Cobrado S/</th><th style="text-align:right">Pendiente S/</th>' +
-    '<th style="text-align:right">Cobrado $</th><th style="text-align:right">Pendiente $</th>' +
-    '<th style="text-align:center">% Avance</th></tr>';
+  tblEl.insertAdjacentHTML('afterbegin', esOrig
+    ? '<colgroup><col style="width:22%"><col style="width:7%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:19%"></colgroup>'
+    : '<colgroup><col style="width:28%"><col style="width:9%"><col style="width:19%"><col style="width:19%"><col style="width:25%"></colgroup>');
+  let theadHtml = '<tr><th style="text-align:left">Financiamiento</th><th style="text-align:center">Clientes</th>';
+  if (showS) theadHtml += '<th style="text-align:right">Cobrado S/</th><th style="text-align:right">Pendiente S/</th>';
+  if (showD) theadHtml += '<th style="text-align:right">Cobrado $</th><th style="text-align:right">Pendiente $</th>';
+  theadHtml += '<th style="text-align:center">% Avance</th></tr>';
+  document.getElementById('tbl-cob-fin-head').innerHTML = theadHtml;
 
-  const nCols = 7;
   const tbody = document.getElementById('tbl-cob-fin-body');
   const rows  = Object.entries(finMap).sort((a, b) => (b[1].cobrado + b[1].pendiente) - (a[1].cobrado + a[1].pendiente));
   if (!rows.length) {
@@ -1090,8 +1093,20 @@ function renderCobranza() {
     const fS = n => fmt(n, 'soles');
     const fD = n => fmt(n, 'dolares');
     function _moneyCells(cobS, cobD, penS, penD) {
-      return `<td style="text-align:right">${fS(cobS)}</td><td style="text-align:right">${fS(penS)}</td>` +
-             `<td style="text-align:right">${fD(cobD)}</td><td style="text-align:right">${fD(penD)}</td>`;
+      let cells = '';
+      if (showS) {
+        // soles mode: include USD converted to soles. original: only soles-native
+        const cS = esOrig ? cobS : cobS + cobD * FX;
+        const pS = esOrig ? penS : penS + penD * FX;
+        cells += `<td style="text-align:right">${fS(cS)}</td><td style="text-align:right">${fS(pS)}</td>`;
+      }
+      if (showD) {
+        // dolares mode: include soles converted to USD. original: only USD-native
+        const cD = esOrig ? cobD : cobD + cobS / FX;
+        const pD = esOrig ? penD : penD + penS / FX;
+        cells += `<td style="text-align:right">${fD(cD)}</td><td style="text-align:right">${fD(pD)}</td>`;
+      }
+      return cells;
     }
     tbody.innerHTML = rows.map(([fin, d]) => {
       const pct      = (d.cobrado + d.pendiente) > 0 ? (d.cobrado / (d.cobrado + d.pendiente) * 100) : 0;
