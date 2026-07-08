@@ -482,14 +482,24 @@
           <div class="kpi-val" id="kpi-cob-monto">—</div>
           <div class="kpi-sub">precio total de venta</div>
         </div>
-        <div class="kpi-card orange">
-          <div class="kpi-label">Monto cuota pagado</div>
+        <div class="kpi-card orange" id="kpi-cob-cobrado-s-card">
+          <div class="kpi-label" id="kpi-cob-cobrado-s-lbl">Cobrado S/</div>
           <div class="kpi-val" id="kpi-cob-cobrado">—</div>
           <div class="kpi-sub">efectivamente cobrado</div>
         </div>
-        <div class="kpi-card purple">
-          <div class="kpi-label">Pendiente por cobrar</div>
+        <div class="kpi-card orange" id="kpi-cob-cobrado-d-card" style="display:none">
+          <div class="kpi-label">Cobrado $</div>
+          <div class="kpi-val" id="kpi-cob-cobrado-usd">—</div>
+          <div class="kpi-sub">efectivamente cobrado</div>
+        </div>
+        <div class="kpi-card purple" id="kpi-cob-pendiente-s-card">
+          <div class="kpi-label" id="kpi-cob-pendiente-s-lbl">Pendiente S/</div>
           <div class="kpi-val" id="kpi-cob-pendiente">—</div>
+          <div class="kpi-sub">saldo estimado</div>
+        </div>
+        <div class="kpi-card purple" id="kpi-cob-pendiente-d-card" style="display:none">
+          <div class="kpi-label">Pendiente $</div>
+          <div class="kpi-val" id="kpi-cob-pendiente-usd">—</div>
           <div class="kpi-sub">saldo estimado</div>
         </div>
       </div>
@@ -498,29 +508,10 @@
       <div class="sub-header"><span>Estado por tipo de financiamiento</span></div>
       <div class="table-wrap">
         <div class="table-scroll">
-          <table style="table-layout:fixed;width:100%">
-            <colgroup>
-              <col style="width:22%">
-              <col style="width:7%">
-              <col style="width:13%">
-              <col style="width:13%">
-              <col style="width:13%">
-              <col style="width:13%">
-              <col style="width:19%">
-            </colgroup>
-            <thead>
-              <tr>
-                <th style="text-align:left">Financiamiento</th>
-                <th style="text-align:center">Clientes</th>
-                <th style="text-align:right">Cobrado S/</th>
-                <th style="text-align:right">Cobrado $</th>
-                <th style="text-align:right">Pendiente S/</th>
-                <th style="text-align:right">Pendiente $</th>
-                <th style="text-align:center">% Avance</th>
-              </tr>
-            </thead>
+          <table id="tbl-cob-fin" style="table-layout:fixed;width:100%">
+            <thead id="tbl-cob-fin-head"></thead>
             <tbody id="tbl-cob-fin-body">
-              <tr><td colspan="6" class="table-empty">Cargando...</td></tr>
+              <tr><td colspan="7" class="table-empty">Cargando...</td></tr>
             </tbody>
           </table>
         </div>
@@ -1029,10 +1020,28 @@ function renderCobranza() {
     return parts.join('<br>') || fmt(0, 'soles');
   }
 
-  document.getElementById('kpi-cob-ventas').textContent = totalUnid.toLocaleString('es-PE');
-  document.getElementById('kpi-cob-monto').textContent  = fmt(montoVentas, MONEDA);
-  document.getElementById('kpi-cob-cobrado').innerHTML   = ing.length ? _fmtMix(cobradoS,   cobradoD)   : '—';
-  document.getElementById('kpi-cob-pendiente').innerHTML = ing.length ? _fmtMix(pendienteS, pendienteD) : '—';
+  const showS = MONEDA !== 'dolares';
+  const showD = MONEDA !== 'soles';
+
+  // KPIs — mostrar/ocultar cards según moneda
+  document.getElementById('kpi-cob-ventas').textContent   = totalUnid.toLocaleString('es-PE');
+  document.getElementById('kpi-cob-monto').textContent    = fmt(montoVentas, MONEDA);
+  document.getElementById('kpi-cob-cobrado-s-card').style.display  = showS ? '' : 'none';
+  document.getElementById('kpi-cob-cobrado-d-card').style.display  = showD ? '' : 'none';
+  document.getElementById('kpi-cob-pendiente-s-card').style.display = showS ? '' : 'none';
+  document.getElementById('kpi-cob-pendiente-d-card').style.display = showD ? '' : 'none';
+  const lblS = MONEDA === 'original' ? 'Cobrado S/' : 'Cobrado';
+  const lblP = MONEDA === 'original' ? 'Pendiente S/' : 'Pendiente';
+  document.getElementById('kpi-cob-cobrado-s-lbl').textContent  = lblS;
+  document.getElementById('kpi-cob-pendiente-s-lbl').textContent = lblP;
+  if (ing.length) {
+    const cobS_disp = MONEDA === 'dolares' ? cobradoS/FX + cobradoD : cobradoS;
+    const penS_disp = MONEDA === 'dolares' ? pendienteS/FX + pendienteD : pendienteS;
+    document.getElementById('kpi-cob-cobrado').textContent    = fmt(cobS_disp, MONEDA === 'dolares' ? 'dolares' : 'soles');
+    document.getElementById('kpi-cob-pendiente').textContent  = fmt(penS_disp, MONEDA === 'dolares' ? 'dolares' : 'soles');
+    document.getElementById('kpi-cob-cobrado-usd').textContent  = fmt(cobradoD,   'dolares');
+    document.getElementById('kpi-cob-pendiente-usd').textContent = fmt(pendienteD, 'dolares');
+  }
 
   // Tabla por TipoFinanciamiento — rastrear soles y USD por separado
   const finMap = {};
@@ -1055,10 +1064,28 @@ function renderCobranza() {
     d.pendiente = MONEDA === 'dolares' ? d.penS/FX + d.penD : d.penS + d.penD*FX;
   });
 
+  // Colgroup + thead dinámico según showS / showD
+  const nMoney  = (showS ? 2 : 0) + (showD ? 2 : 0);
+  const moneyW  = Math.floor(52 / nMoney) + '%';
+  let cgHtml = '<colgroup><col style="width:22%"><col style="width:7%">';
+  if (showS) cgHtml += `<col style="width:${moneyW}"><col style="width:${moneyW}">`;
+  if (showD) cgHtml += `<col style="width:${moneyW}"><col style="width:${moneyW}">`;
+  cgHtml += '<col style="width:19%"></colgroup>';
+  let thHtml = '<thead><tr><th style="text-align:left">Financiamiento</th><th style="text-align:center">Clientes</th>';
+  if (showS) thHtml += '<th style="text-align:right">Cobrado S/</th><th style="text-align:right">Pendiente S/</th>';
+  if (showD) thHtml += '<th style="text-align:right">Cobrado $</th><th style="text-align:right">Pendiente $</th>';
+  thHtml += '<th style="text-align:center">% Avance</th></tr></thead>';
+  const tblEl = document.getElementById('tbl-cob-fin');
+  const oldCg = tblEl.querySelector('colgroup');
+  if (oldCg) tblEl.removeChild(oldCg);
+  tblEl.insertAdjacentHTML('afterbegin', cgHtml);
+  document.getElementById('tbl-cob-fin-head').innerHTML = thHtml.replace('<thead>', '').replace('</thead>', '');
+
+  const nCols   = 2 + nMoney + 1;
   const tbody = document.getElementById('tbl-cob-fin-body');
   const rows  = Object.entries(finMap).sort((a, b) => (b[1].cobrado + b[1].pendiente) - (a[1].cobrado + a[1].pendiente));
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Sin datos de cobranza</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${nCols}" class="table-empty">Sin datos de cobranza</td></tr>`;
   } else {
     const totClientes  = rows.reduce((s, [, d]) => s + d.clientes,  0);
     const totCobS = rows.reduce((s, [, d]) => s + d.cobS, 0);
@@ -1071,16 +1098,19 @@ function renderCobranza() {
     const totPct       = totTotal > 0 ? (totCobrado / totTotal * 100) : 0;
     const fS = n => fmt(n, 'soles');
     const fD = n => fmt(n, 'dolares');
+    function _moneyCells(cobS, cobD, penS, penD) {
+      let s = '';
+      if (showS) s += `<td style="text-align:right">${fS(cobS)}</td><td style="text-align:right">${fS(penS)}</td>`;
+      if (showD) s += `<td style="text-align:right">${fD(cobD)}</td><td style="text-align:right">${fD(penD)}</td>`;
+      return s;
+    }
     tbody.innerHTML = rows.map(([fin, d]) => {
       const pct      = (d.cobrado + d.pendiente) > 0 ? (d.cobrado / (d.cobrado + d.pendiente) * 100) : 0;
       const barColor = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
       return `<tr>
         <td style="text-align:left;overflow:hidden;text-overflow:ellipsis" title="${fin}">${fin}</td>
         <td style="text-align:center">${d.clientes}</td>
-        <td style="text-align:right">${fS(d.cobS)}</td>
-        <td style="text-align:right">${fD(d.cobD)}</td>
-        <td style="text-align:right">${fS(d.penS)}</td>
-        <td style="text-align:right">${fD(d.penD)}</td>
+        ${_moneyCells(d.cobS, d.cobD, d.penS, d.penD)}
         <td style="text-align:center">
           <div style="display:inline-flex;align-items:center;gap:6px">
             <div style="width:64px;height:5px;background:var(--border-2);border-radius:3px;flex-shrink:0">
@@ -1093,10 +1123,7 @@ function renderCobranza() {
     }).join('') + `<tr style="border-top:2px solid var(--border-2);font-weight:600;background:var(--bg)">
       <td style="text-align:left">Total</td>
       <td style="text-align:center">${totClientes}</td>
-      <td style="text-align:right">${fS(totCobS)}</td>
-      <td style="text-align:right">${fD(totCobD)}</td>
-      <td style="text-align:right">${fS(totPenS)}</td>
-      <td style="text-align:right">${fD(totPenD)}</td>
+      ${_moneyCells(totCobS, totCobD, totPenS, totPenD)}
       <td style="text-align:center">
         <div style="display:inline-flex;align-items:center;gap:6px">
           <div style="width:64px;height:5px;background:var(--border-2);border-radius:3px;flex-shrink:0">
