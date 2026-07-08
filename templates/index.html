@@ -1020,26 +1020,22 @@ function renderCobranza() {
     return parts.join('<br>') || fmt(0, 'soles');
   }
 
-  const showS = MONEDA !== 'dolares';
-  const showD = MONEDA !== 'soles';
+  const esOrig = MONEDA === 'original';
 
-  // KPIs — mostrar/ocultar cards según moneda
-  document.getElementById('kpi-cob-ventas').textContent   = totalUnid.toLocaleString('es-PE');
-  document.getElementById('kpi-cob-monto').textContent    = fmt(montoVentas, MONEDA);
-  document.getElementById('kpi-cob-cobrado-s-card').style.display  = showS ? '' : 'none';
-  document.getElementById('kpi-cob-cobrado-d-card').style.display  = showD ? '' : 'none';
-  document.getElementById('kpi-cob-pendiente-s-card').style.display = showS ? '' : 'none';
-  document.getElementById('kpi-cob-pendiente-d-card').style.display = showD ? '' : 'none';
-  const lblS = MONEDA === 'original' ? 'Cobrado S/' : 'Cobrado';
-  const lblP = MONEDA === 'original' ? 'Pendiente S/' : 'Pendiente';
-  document.getElementById('kpi-cob-cobrado-s-lbl').textContent  = lblS;
-  document.getElementById('kpi-cob-pendiente-s-lbl').textContent = lblP;
+  // KPIs — en original: 2 cards (S/ y $). En soles/dolares: 1 card con total convertido
+  document.getElementById('kpi-cob-ventas').textContent  = totalUnid.toLocaleString('es-PE');
+  document.getElementById('kpi-cob-monto').textContent   = fmt(montoVentas, MONEDA);
+  document.getElementById('kpi-cob-cobrado-s-card').style.display   = '';
+  document.getElementById('kpi-cob-pendiente-s-card').style.display = '';
+  document.getElementById('kpi-cob-cobrado-d-card').style.display   = esOrig ? '' : 'none';
+  document.getElementById('kpi-cob-pendiente-d-card').style.display = esOrig ? '' : 'none';
+  document.getElementById('kpi-cob-cobrado-s-lbl').textContent   = esOrig ? 'Cobrado S/'   : 'Cobrado';
+  document.getElementById('kpi-cob-pendiente-s-lbl').textContent  = esOrig ? 'Pendiente S/' : 'Pendiente';
   if (ing.length) {
-    const cobS_disp = MONEDA === 'dolares' ? cobradoS/FX + cobradoD : cobradoS;
-    const penS_disp = MONEDA === 'dolares' ? pendienteS/FX + pendienteD : pendienteS;
-    document.getElementById('kpi-cob-cobrado').textContent    = fmt(cobS_disp, MONEDA === 'dolares' ? 'dolares' : 'soles');
-    document.getElementById('kpi-cob-pendiente').textContent  = fmt(penS_disp, MONEDA === 'dolares' ? 'dolares' : 'soles');
-    document.getElementById('kpi-cob-cobrado-usd').textContent  = fmt(cobradoD,   'dolares');
+    // Card soles: en original muestra solo cobros soles-nativos; en soles/dolares muestra total convertido
+    document.getElementById('kpi-cob-cobrado').textContent   = esOrig ? fmt(cobradoS,   'soles')  : fmt(totalCobrado,   MONEDA);
+    document.getElementById('kpi-cob-pendiente').textContent = esOrig ? fmt(pendienteS, 'soles')  : fmt(totalPendiente, MONEDA);
+    document.getElementById('kpi-cob-cobrado-usd').textContent   = fmt(cobradoD,   'dolares');
     document.getElementById('kpi-cob-pendiente-usd').textContent = fmt(pendienteD, 'dolares');
   }
 
@@ -1064,24 +1060,19 @@ function renderCobranza() {
     d.pendiente = MONEDA === 'dolares' ? d.penS/FX + d.penD : d.penS + d.penD*FX;
   });
 
-  // Colgroup + thead dinámico según showS / showD
-  const nMoney  = (showS ? 2 : 0) + (showD ? 2 : 0);
-  const moneyW  = Math.floor(52 / nMoney) + '%';
-  let cgHtml = '<colgroup><col style="width:22%"><col style="width:7%">';
-  if (showS) cgHtml += `<col style="width:${moneyW}"><col style="width:${moneyW}">`;
-  if (showD) cgHtml += `<col style="width:${moneyW}"><col style="width:${moneyW}">`;
-  cgHtml += '<col style="width:19%"></colgroup>';
-  let thHtml = '<thead><tr><th style="text-align:left">Financiamiento</th><th style="text-align:center">Clientes</th>';
-  if (showS) thHtml += '<th style="text-align:right">Cobrado S/</th><th style="text-align:right">Pendiente S/</th>';
-  if (showD) thHtml += '<th style="text-align:right">Cobrado $</th><th style="text-align:right">Pendiente $</th>';
-  thHtml += '<th style="text-align:center">% Avance</th></tr></thead>';
+  // Colgroup + thead fijos: siempre 7 columnas (S/ y $ siempre visibles)
   const tblEl = document.getElementById('tbl-cob-fin');
   const oldCg = tblEl.querySelector('colgroup');
   if (oldCg) tblEl.removeChild(oldCg);
-  tblEl.insertAdjacentHTML('afterbegin', cgHtml);
-  document.getElementById('tbl-cob-fin-head').innerHTML = thHtml.replace('<thead>', '').replace('</thead>', '');
+  tblEl.insertAdjacentHTML('afterbegin',
+    '<colgroup><col style="width:22%"><col style="width:7%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:19%"></colgroup>');
+  document.getElementById('tbl-cob-fin-head').innerHTML =
+    '<tr><th style="text-align:left">Financiamiento</th><th style="text-align:center">Clientes</th>' +
+    '<th style="text-align:right">Cobrado S/</th><th style="text-align:right">Pendiente S/</th>' +
+    '<th style="text-align:right">Cobrado $</th><th style="text-align:right">Pendiente $</th>' +
+    '<th style="text-align:center">% Avance</th></tr>';
 
-  const nCols   = 2 + nMoney + 1;
+  const nCols = 7;
   const tbody = document.getElementById('tbl-cob-fin-body');
   const rows  = Object.entries(finMap).sort((a, b) => (b[1].cobrado + b[1].pendiente) - (a[1].cobrado + a[1].pendiente));
   if (!rows.length) {
@@ -1099,10 +1090,8 @@ function renderCobranza() {
     const fS = n => fmt(n, 'soles');
     const fD = n => fmt(n, 'dolares');
     function _moneyCells(cobS, cobD, penS, penD) {
-      let s = '';
-      if (showS) s += `<td style="text-align:right">${fS(cobS)}</td><td style="text-align:right">${fS(penS)}</td>`;
-      if (showD) s += `<td style="text-align:right">${fD(cobD)}</td><td style="text-align:right">${fD(penD)}</td>`;
-      return s;
+      return `<td style="text-align:right">${fS(cobS)}</td><td style="text-align:right">${fS(penS)}</td>` +
+             `<td style="text-align:right">${fD(cobD)}</td><td style="text-align:right">${fD(penD)}</td>`;
     }
     tbody.innerHTML = rows.map(([fin, d]) => {
       const pct      = (d.cobrado + d.pendiente) > 0 ? (d.cobrado / (d.cobrado + d.pendiente) * 100) : 0;
