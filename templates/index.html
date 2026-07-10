@@ -427,6 +427,28 @@
 
     <!-- Separaciones -->
     <div class="sub-header"><span>Separaciones</span></div>
+    <div class="kpi-row">
+      <div class="kpi-card blue">
+        <div class="kpi-label">Unidades separadas</div>
+        <div class="kpi-val" id="kpi-sep-unidades">—</div>
+        <div class="kpi-sub">actualmente en separación</div>
+      </div>
+      <div class="kpi-card orange">
+        <div class="kpi-label">Monto S/</div>
+        <div class="kpi-val" id="kpi-sep-monto-s">—</div>
+        <div class="kpi-sub">soles original</div>
+      </div>
+      <div class="kpi-card orange">
+        <div class="kpi-label">Monto $</div>
+        <div class="kpi-val" id="kpi-sep-monto-d">—</div>
+        <div class="kpi-sub">dólares original</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Ticket promedio</div>
+        <div class="kpi-val" id="kpi-sep-ticket">—</div>
+        <div class="kpi-sub">precio lista S/</div>
+      </div>
+    </div>
     <div id="sep-tipos" class="kpi-row" style="margin-top:0"></div>
 
     <!-- Sub-sección Stock -->
@@ -958,6 +980,19 @@ function renderVentas() {
       </div>`;
     }).join('') || `<div class="kpi-card"><div class="kpi-label">Sin registros</div><div class="kpi-val">0</div></div>`;
   }
+
+  // KPI cards de separaciones
+  const sepRows = stockProy.filter(r => (r['Estado'] || '').trim().toUpperCase() === 'SEPARACIÓN');
+  const sepTotalN = sepRows.length;
+  const sepMontoS = sepRows.filter(r => !(r['Moneda'] || '').toUpperCase().includes('DOLAR'))
+                           .reduce((s, r) => s + (parseFloat(r['PrecioSoles'])   || 0), 0);
+  const sepMontoD = sepRows.filter(r =>  (r['Moneda'] || '').toUpperCase().includes('DOLAR'))
+                           .reduce((s, r) => s + (parseFloat(r['PrecioDolares']) || 0), 0);
+  const sepTicket = sepTotalN ? (sepMontoS + sepMontoD * FX) / sepTotalN : 0;
+  document.getElementById('kpi-sep-unidades').textContent = sepTotalN.toLocaleString('es-PE');
+  document.getElementById('kpi-sep-monto-s').textContent  = fmt(sepMontoS, 'soles');
+  document.getElementById('kpi-sep-monto-d').textContent  = fmt(sepMontoD, 'dolares');
+  document.getElementById('kpi-sep-ticket').textContent   = fmt(sepTicket, 'soles');
 
   const sepCont = document.getElementById('sep-tipos');
   if (sepCont) sepCont.innerHTML = _renderTipoCards('SEPARACIÓN', 'orange');
