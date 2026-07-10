@@ -388,6 +388,8 @@
 <!-- TABS -->
 <div class="section-tabs">
   <button class="tab-btn active" onclick="showSection('ventas', this)">Ventas</button>
+  <button class="tab-btn" onclick="showSection('separaciones', this)">Separaciones</button>
+  <button class="tab-btn" onclick="showSection('stock', this)">Stock</button>
   <button class="tab-btn" onclick="showSection('flujo-caja', this)">Proyección &amp; Cobranza</button>
 </div>
 
@@ -396,9 +398,11 @@
   <!-- ══════════════════════════════════════════════════════
        VENTAS
   ══════════════════════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════
+       VENTAS
+  ══════════════════════════════════════════════════════ -->
   <div id="section-ventas" class="section active">
 
-    <!-- KPIs Ventas -->
     <div class="kpi-row">
       <div class="kpi-card blue">
         <div class="kpi-label">Unidades vendidas</div>
@@ -422,11 +426,30 @@
       </div>
     </div>
 
-    <!-- Ventas por tipo de inmueble -->
     <div id="ventas-tipos" class="kpi-row" style="margin-top:0"></div>
 
-    <!-- Separaciones -->
-    <div class="sub-header"><span>Separaciones</span></div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Evolución mensual — Monto</h3>
+        <div class="chart-wrap"><canvas id="chart-v-evolucion"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Evolución mensual — Unidades</h3>
+        <div class="chart-wrap"><canvas id="chart-v-unidades-mes"></canvas></div>
+      </div>
+      <div class="chart-card" style="grid-column:1/-1">
+        <h3>Monto vendido por proyecto</h3>
+        <div class="chart-wrap"><canvas id="chart-v-proyecto"></canvas></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SEPARACIONES
+  ══════════════════════════════════════════════════════ -->
+  <div id="section-separaciones" class="section">
+
     <div class="kpi-row">
       <div class="kpi-card blue">
         <div class="kpi-label">Unidades separadas</div>
@@ -451,8 +474,13 @@
     </div>
     <div id="sep-tipos" class="kpi-row" style="margin-top:0"></div>
 
-    <!-- Sub-sección Stock -->
-    <div class="sub-header"><span>Stock y Disponibilidad</span></div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       STOCK
+  ══════════════════════════════════════════════════════ -->
+  <div id="section-stock" class="section">
+
     <div class="kpi-row">
       <div class="kpi-card">
         <div class="kpi-label">Total stock</div>
@@ -465,10 +493,8 @@
         <div class="kpi-sub">para la venta</div>
       </div>
     </div>
-    <!-- Stock por tipo -->
     <div id="stock-tipos" class="kpi-row" style="margin-top:0"></div>
 
-    <!-- Bloqueados -->
     <div class="sub-header"><span>Bloqueados</span></div>
     <div class="kpi-row">
       <div class="kpi-card blue">
@@ -494,21 +520,8 @@
     </div>
     <div id="blq-tipos" class="kpi-row" style="margin-top:0"></div>
 
-    <!-- Gráficos Ventas -->
     <div class="charts-grid">
-      <div class="chart-card">
-        <h3>Evolución mensual — Monto</h3>
-        <div class="chart-wrap"><canvas id="chart-v-evolucion"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h3>Evolución mensual — Unidades</h3>
-        <div class="chart-wrap"><canvas id="chart-v-unidades-mes"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h3>Monto vendido por proyecto</h3>
-        <div class="chart-wrap"><canvas id="chart-v-proyecto"></canvas></div>
-      </div>
-      <div class="chart-card">
+      <div class="chart-card" style="grid-column:1/-1">
         <h3>Distribución de stock</h3>
         <div class="chart-wrap"><canvas id="chart-st-estado"></canvas></div>
       </div>
