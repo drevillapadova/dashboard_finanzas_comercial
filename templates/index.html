@@ -425,6 +425,10 @@
     <!-- Ventas por tipo de inmueble -->
     <div id="ventas-tipos" class="kpi-row" style="margin-top:0"></div>
 
+    <!-- Separaciones -->
+    <div class="sub-header"><span>Separaciones</span></div>
+    <div id="sep-tipos" class="kpi-row" style="margin-top:0"></div>
+
     <!-- Sub-sección Stock -->
     <div class="sub-header"><span>Stock y Disponibilidad</span></div>
     <div class="kpi-row">
@@ -441,6 +445,10 @@
     </div>
     <!-- Stock por tipo -->
     <div id="stock-tipos" class="kpi-row" style="margin-top:0"></div>
+
+    <!-- Bloqueados -->
+    <div class="sub-header"><span>Bloqueados</span></div>
+    <div id="blq-tipos" class="kpi-row" style="margin-top:0"></div>
 
     <!-- Gráficos Ventas -->
     <div class="charts-grid">
@@ -685,6 +693,13 @@ function _normLabel(t) {
   const s = t.trim();
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
+function _tipoGrupo(t) {
+  const u = (t || '').toUpperCase().trim();
+  if (u.includes('DEPART')) return 'Departamento';
+  if (u.includes('ESTAC') && !u.includes('BICICLET')) return 'Estacionamiento';
+  if (u.includes('AZOTEA') || (u.includes('DEPÓSITO') || u.includes('DEPOSITO') || (u.includes('DEP') && !u.includes('DEPART')))) return 'Azotea/Depósito';
+  return null;
+}
 
 function filtrarPorTipo(arr) {
   const t = (document.getElementById('filtro-tipo').value || '').trim();
@@ -910,6 +925,45 @@ function renderVentas() {
       tiposCont.innerHTML = '';
     }
   }
+
+  // Helper: precio de fila STOCK según MONEDA
+  function _precioStock(r) {
+    const esUSD = (r['Moneda'] || '').toUpperCase().includes('DOLAR');
+    const s = parseFloat(r['PrecioSoles'])   || 0;
+    const d = parseFloat(r['PrecioDolares']) || 0;
+    if (MONEDA === 'dolares') return d || s / FX;
+    return s || d * FX;
+  }
+
+  // Separaciones (STOCK, Estado = SEPARACIÓN)
+  const stockProy = filtrarPorProyecto(DATA.stock);
+  function _renderTipoCards(estadoMatch, colorClass) {
+    const filtrado = stockProy.filter(r => (r['Estado'] || '').trim().toUpperCase() === estadoMatch);
+    const mapa = {};
+    filtrado.forEach(r => {
+      const g = _tipoGrupo(r['TipoInmueble'] || '');
+      if (!g) return;
+      if (!mapa[g]) mapa[g] = { n: 0, monto: 0 };
+      mapa[g].n++;
+      mapa[g].monto += _precioStock(r);
+    });
+    const orden = ['Departamento', 'Estacionamiento', 'Azotea/Depósito'];
+    return orden.filter(k => mapa[k]).map(k => {
+      const v = mapa[k];
+      const monedaLabel = MONEDA === 'dolares' ? 'dolares' : 'soles';
+      return `<div class="kpi-card ${colorClass}">
+        <div class="kpi-label">${k}</div>
+        <div class="kpi-val">${v.n.toLocaleString('es-PE')}</div>
+        <div class="kpi-sub">${fmt(v.monto, monedaLabel)}</div>
+      </div>`;
+    }).join('') || `<div class="kpi-card"><div class="kpi-label">Sin registros</div><div class="kpi-val">0</div></div>`;
+  }
+
+  const sepCont = document.getElementById('sep-tipos');
+  if (sepCont) sepCont.innerHTML = _renderTipoCards('SEPARACIÓN', 'orange');
+
+  const blqCont = document.getElementById('blq-tipos');
+  if (blqCont) blqCont.innerHTML = _renderTipoCards('BLOQUEADO', 'purple');
 
   // Chart: evolución monto mensual
   const porMes = agruparPorMes(datos, 'FechaVenta', r => _precioFila(r));
