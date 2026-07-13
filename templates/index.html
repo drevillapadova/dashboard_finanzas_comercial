@@ -502,12 +502,12 @@
         <div class="kpi-val" id="kpi-blq-unidades">—</div>
         <div class="kpi-sub">bloqueadas actualmente</div>
       </div>
-      <div class="kpi-card purple">
-        <div class="kpi-label">Monto S/</div>
+      <div class="kpi-card purple" id="kpi-blq-monto-card">
+        <div class="kpi-label" id="kpi-blq-monto-lbl">Monto S/</div>
         <div class="kpi-val" id="kpi-blq-monto-s">—</div>
-        <div class="kpi-sub">PEN original</div>
+        <div class="kpi-sub" id="kpi-blq-moneda-lbl">PEN original</div>
       </div>
-      <div class="kpi-card purple">
+      <div class="kpi-card purple" id="kpi-blq-monto-usd-card">
         <div class="kpi-label">Monto $</div>
         <div class="kpi-val" id="kpi-blq-monto-d">—</div>
         <div class="kpi-sub">USD original</div>
@@ -1046,11 +1046,32 @@ function renderVentas() {
                            .reduce((s, r) => s + (parseFloat(r['PrecioSoles'])   || 0), 0);
   const blqMontoD = blqRows.filter(r =>  (r['Moneda'] || '').toUpperCase().includes('DOLAR'))
                            .reduce((s, r) => s + (parseFloat(r['PrecioDolares']) || 0), 0);
-  const blqTicket = blqTotalN ? (blqMontoS + blqMontoD * FX) / blqTotalN : 0;
+  const blqMontoSoles   = blqMontoS + blqMontoD * FX;
+  const blqMontoDolares = blqMontoS / FX + blqMontoD;
+  const blqTicket = blqTotalN ? blqMontoSoles / blqTotalN : 0;
   document.getElementById('kpi-blq-unidades').textContent = blqTotalN.toLocaleString('es-PE');
-  document.getElementById('kpi-blq-monto-s').textContent  = fmt(blqMontoS, 'soles');
-  document.getElementById('kpi-blq-monto-d').textContent  = fmt(blqMontoD, 'dolares');
   document.getElementById('kpi-blq-ticket').textContent   = fmt(blqTicket, 'soles');
+
+  const blqCardUSD   = document.getElementById('kpi-blq-monto-usd-card');
+  const blqLblMonto  = document.getElementById('kpi-blq-monto-lbl');
+  const blqLblMoneda = document.getElementById('kpi-blq-moneda-lbl');
+  if (MONEDA === 'original') {
+    blqCardUSD.style.display = '';
+    blqLblMonto.textContent  = 'Monto S/';
+    blqLblMoneda.textContent = 'PEN original';
+    document.getElementById('kpi-blq-monto-s').textContent = fmt(blqMontoS, 'soles');
+    document.getElementById('kpi-blq-monto-d').textContent = fmt(blqMontoD, 'dolares');
+  } else if (MONEDA === 'dolares') {
+    blqCardUSD.style.display = 'none';
+    blqLblMonto.textContent  = 'Monto total';
+    blqLblMoneda.textContent = 'USD (TC SUNAT)';
+    document.getElementById('kpi-blq-monto-s').textContent = fmt(blqMontoDolares, 'dolares');
+  } else {
+    blqCardUSD.style.display = 'none';
+    blqLblMonto.textContent  = 'Monto total';
+    blqLblMoneda.textContent = 'Soles (TC SUNAT)';
+    document.getElementById('kpi-blq-monto-s').textContent = fmt(blqMontoSoles, 'soles');
+  }
 
   const blqCont = document.getElementById('blq-tipos');
   if (blqCont) blqCont.innerHTML = _renderTipoCards('BLOQUEADO', 'purple', 'unidades bloqueadas');
