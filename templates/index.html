@@ -456,12 +456,12 @@
         <div class="kpi-val" id="kpi-sep-unidades">—</div>
         <div class="kpi-sub">en separación</div>
       </div>
-      <div class="kpi-card orange">
-        <div class="kpi-label">Monto S/</div>
+      <div class="kpi-card orange" id="kpi-sep-monto-card">
+        <div class="kpi-label" id="kpi-sep-monto-lbl">Monto S/</div>
         <div class="kpi-val" id="kpi-sep-monto-s">—</div>
-        <div class="kpi-sub">PEN original</div>
+        <div class="kpi-sub" id="kpi-sep-moneda-lbl">PEN original</div>
       </div>
-      <div class="kpi-card orange">
+      <div class="kpi-card orange" id="kpi-sep-monto-usd-card">
         <div class="kpi-label">Monto $</div>
         <div class="kpi-val" id="kpi-sep-monto-d">—</div>
         <div class="kpi-sub">USD original</div>
@@ -983,37 +983,23 @@ function renderVentas() {
     }
   }
 
-  // Helper: precio de fila STOCK según MONEDA
-  function _precioStock(r) {
-    const esUSD = (r['Moneda'] || '').toUpperCase().includes('DOLAR');
-    const s = parseFloat(r['PrecioSoles'])   || 0;
-    const d = parseFloat(r['PrecioDolares']) || 0;
-    if (MONEDA === 'dolares') return d || s / FX;
-    return s || d * FX;
-  }
-
   // Separaciones (STOCK, Estado = SEPARACIÓN)
   const stockProy = filtrarPorProyecto(DATA.stock);
-  function _renderTipoCards(estadoMatch, colorClass) {
+  function _renderTipoCards(estadoMatch, colorClass, subLabel) {
     const filtrado = stockProy.filter(r => (r['Estado'] || '').trim().toUpperCase() === estadoMatch);
     const mapa = {};
     filtrado.forEach(r => {
       const g = _tipoGrupo(r['TipoInmueble'] || '');
       if (!g) return;
-      if (!mapa[g]) mapa[g] = { n: 0, monto: 0 };
-      mapa[g].n++;
-      mapa[g].monto += _precioStock(r);
+      mapa[g] = (mapa[g] || 0) + 1;
     });
     const orden = ['Departamento', 'Estacionamiento', 'Azotea/Depósito'];
-    return orden.filter(k => mapa[k]).map(k => {
-      const v = mapa[k];
-      const monedaLabel = MONEDA === 'dolares' ? 'dolares' : 'soles';
-      return `<div class="kpi-card ${colorClass}">
-        <div class="kpi-label">${k}</div>
-        <div class="kpi-val">${v.n.toLocaleString('es-PE')}</div>
-        <div class="kpi-sub">${fmt(v.monto, monedaLabel)}</div>
-      </div>`;
-    }).join('') || `<div class="kpi-card"><div class="kpi-label">Sin registros</div><div class="kpi-val">0</div></div>`;
+    return orden.filter(k => mapa[k]).map(k => `
+        <div class="kpi-card ${colorClass}">
+          <div class="kpi-label">${k}</div>
+          <div class="kpi-val">${mapa[k].toLocaleString('es-PE')}</div>
+          <div class="kpi-sub">${subLabel}</div>
+        </div>`).join('') || `<div class="kpi-card"><div class="kpi-label">Sin registros</div><div class="kpi-val">0</div></div>`;
   }
 
   // KPI cards de separaciones
@@ -1023,14 +1009,35 @@ function renderVentas() {
                            .reduce((s, r) => s + (parseFloat(r['PrecioSoles'])   || 0), 0);
   const sepMontoD = sepRows.filter(r =>  (r['Moneda'] || '').toUpperCase().includes('DOLAR'))
                            .reduce((s, r) => s + (parseFloat(r['PrecioDolares']) || 0), 0);
-  const sepTicket = sepTotalN ? (sepMontoS + sepMontoD * FX) / sepTotalN : 0;
+  const sepMontoSoles   = sepMontoS + sepMontoD * FX;
+  const sepMontoDolares = sepMontoS / FX + sepMontoD;
+  const sepTicket = sepTotalN ? sepMontoSoles / sepTotalN : 0;
   document.getElementById('kpi-sep-unidades').textContent = sepTotalN.toLocaleString('es-PE');
-  document.getElementById('kpi-sep-monto-s').textContent  = fmt(sepMontoS, 'soles');
-  document.getElementById('kpi-sep-monto-d').textContent  = fmt(sepMontoD, 'dolares');
   document.getElementById('kpi-sep-ticket').textContent   = fmt(sepTicket, 'soles');
 
+  const sepCardUSD  = document.getElementById('kpi-sep-monto-usd-card');
+  const sepLblMonto = document.getElementById('kpi-sep-monto-lbl');
+  const sepLblMoneda = document.getElementById('kpi-sep-moneda-lbl');
+  if (MONEDA === 'original') {
+    sepCardUSD.style.display = '';
+    sepLblMonto.textContent  = 'Monto S/';
+    sepLblMoneda.textContent = 'PEN original';
+    document.getElementById('kpi-sep-monto-s').textContent = fmt(sepMontoS, 'soles');
+    document.getElementById('kpi-sep-monto-d').textContent = fmt(sepMontoD, 'dolares');
+  } else if (MONEDA === 'dolares') {
+    sepCardUSD.style.display = 'none';
+    sepLblMonto.textContent  = 'Monto total';
+    sepLblMoneda.textContent = 'USD (TC SUNAT)';
+    document.getElementById('kpi-sep-monto-s').textContent = fmt(sepMontoDolares, 'dolares');
+  } else {
+    sepCardUSD.style.display = 'none';
+    sepLblMonto.textContent  = 'Monto total';
+    sepLblMoneda.textContent = 'Soles (TC SUNAT)';
+    document.getElementById('kpi-sep-monto-s').textContent = fmt(sepMontoSoles, 'soles');
+  }
+
   const sepCont = document.getElementById('sep-tipos');
-  if (sepCont) sepCont.innerHTML = _renderTipoCards('SEPARACIÓN', 'orange');
+  if (sepCont) sepCont.innerHTML = _renderTipoCards('SEPARACIÓN', 'orange', 'unidades en separación');
 
   // KPI cards de bloqueados
   const blqRows = stockProy.filter(r => (r['Estado'] || '').trim().toUpperCase() === 'BLOQUEADO');
@@ -1046,7 +1053,7 @@ function renderVentas() {
   document.getElementById('kpi-blq-ticket').textContent   = fmt(blqTicket, 'soles');
 
   const blqCont = document.getElementById('blq-tipos');
-  if (blqCont) blqCont.innerHTML = _renderTipoCards('BLOQUEADO', 'purple');
+  if (blqCont) blqCont.innerHTML = _renderTipoCards('BLOQUEADO', 'purple', 'unidades bloqueadas');
 
   // Chart: evolución monto mensual
   const porMes = agruparPorMes(datos, 'FechaVenta', r => _precioFila(r));
