@@ -488,6 +488,101 @@ def _filtrar_proyectos(df, col='Proyecto'):
 
 
 # ============================================================
+# NORMALIZACIÓN — Evolta renombró columnas (jul-2026):
+#   VENTAS: TipoMoneda -> Moneda_Base/Moneda_OC
+#           stubs PrecioBase_N/PrecioLista_N/DescuentoLista_N/TotalLista_N ->
+#           Precio_Base_N/PrecioLista_OC_N/DescuentoLista_OC_N/TotalVenta_OC_N,
+#           y el reporte ahora ya viene 1 fila = 1 unidad (T/M, TipoInmueble,
+#           NroInmueble, N_Unidad, etc. sin sufijo _N).
+#   STOCK:  Moneda/PrecioVenta -> Moneda_Base/PrecioBase, Moneda_Lista/PrecioLista,
+#           Moneda_OC/PrecioVenta_OC.
+# ============================================================
+
+def _normalizar_moneda_ventas(df):
+    """Crea TipoMoneda a partir de Moneda_OC (prioridad) o Moneda_Base si el
+    reporte ya no trae la columna TipoMoneda tal cual."""
+    if 'TipoMoneda' in df.columns:
+        return df
+    if 'Moneda_OC' not in df.columns and 'Moneda_Base' not in df.columns:
+        return df
+    df = df.copy()
+    moneda_oc   = df['Moneda_OC'].astype(str).str.strip() if 'Moneda_OC' in df.columns else pd.Series('', index=df.index)
+    moneda_base = df['Moneda_Base'].astype(str).str.strip() if 'Moneda_Base' in df.columns else pd.Series('', index=df.index)
+    df['TipoMoneda'] = moneda_oc.where(moneda_oc != '', moneda_base)
+    print('   -> [MONEDA] TipoMoneda derivado de Moneda_OC/Moneda_Base')
+    return df
+
+
+def _normalizar_precio_moneda_stock(df):
+    """Crea PrecioVenta/Moneda a partir de las columnas nuevas de Evolta cuando
+    el reporte de stock ya no trae 'PrecioVenta'/'Moneda' tal cual.
+    Prioridad: PrecioVenta_OC/Moneda_OC (precio real de la OC, si la unidad ya
+    tiene una) -> PrecioLista/Moneda_Lista (precio de lista, unidades
+    disponibles sin OC) -> PrecioBase/Moneda_Base."""
+    if 'PrecioVenta' in df.columns and 'Moneda' in df.columns:
+        return df
+    df = df.copy()
+
+    def _num(col):
+        return pd.to_numeric(df[col], errors='coerce').fillna(0) if col in df.columns else pd.Series(0.0, index=df.index)
+
+    def _str(col):
+        return df[col].astype(str).str.strip() if col in df.columns else pd.Series('', index=df.index)
+
+    precio_oc, precio_lista, precio_base = _num('PrecioVenta_OC'), _num('PrecioLista'), _num('PrecioBase')
+    moneda_oc, moneda_lista, moneda_base = _str('Moneda_OC'), _str('Moneda_Lista'), _str('Moneda_Base')
+
+    usar_oc    = precio_oc > 0
+    usar_lista = ~usar_oc & (precio_lista > 0)
+
+    df['PrecioVenta'] = precio_oc.where(usar_oc, precio_lista.where(usar_lista, precio_base))
+    df['Moneda'] = moneda_oc.where(usar_oc & (moneda_oc != ''),
+                       moneda_lista.where(usar_lista & (moneda_lista != ''), moneda_base))
+    print('   -> [MONEDA] PrecioVenta/Moneda derivados de PrecioVenta_OC/PrecioLista/PrecioBase')
+    return df
+
+
+def _marcar_comercio(df):
+    """Modelo=COMERCIO -> TipoInmueble='Comercio' (separa locales comerciales de depas)."""
+    if 'Modelo' not in df.columns or 'TipoInmueble' not in df.columns:
+        return df
+    df = df.copy()
+    mask = df['Modelo'].astype(str).str.upper().str.strip() == 'COMERCIO'
+    if mask.any():
+        df.loc[mask, 'TipoInmueble'] = 'Comercio'
+        print(f'   -> [UNPIVOT] {mask.sum()} unidades COMERCIO separadas')
+    return df
+
+
+def _seleccionar_slot_por_n_unidad(df):
+    """Formato nuevo Evolta: el reporte ya viene 1 fila = 1 unidad (TipoInmueble,
+    NroInmueble, N_Unidad, etc. son columnas planas), pero los montos siguen
+    anchos por slot (Precio_Base_N / PrecioLista_OC_N / DescuentoLista_OC_N /
+    TotalVenta_OC_N, N=1..6). Selecciona el slot que corresponde a N_Unidad
+    de cada fila para armar PrecioBase/PrecioLista/DescuentoLista/PrecioVenta."""
+    df = df.copy()
+    slot_map = {
+        'PrecioBase':     'Precio_Base',
+        'PrecioLista':    'PrecioLista_OC',
+        'DescuentoLista': 'DescuentoLista_OC',
+        'PrecioVenta':    'TotalVenta_OC',
+    }
+    n_col = pd.to_numeric(df['N_Unidad'], errors='coerce').fillna(1).astype(int).clip(1, 6)
+    for destino, prefijo in slot_map.items():
+        cols_disponibles = {n: f'{prefijo}_{n}' for n in range(1, 7) if f'{prefijo}_{n}' in df.columns}
+        if not cols_disponibles:
+            continue
+        valores = pd.Series(0.0, index=df.index)
+        for n, col_slot in cols_disponibles.items():
+            m = n_col == n
+            valores.loc[m] = pd.to_numeric(df.loc[m, col_slot], errors='coerce').fillna(0)
+        df[destino] = valores
+    df = _marcar_comercio(df)
+    print(f'   -> [UNPIVOT] Formato nuevo detectado (1 fila=1 unidad), montos armados via N_Unidad')
+    return df
+
+
+# ============================================================
 # UNPIVOT VENTAS: wide (1 fila=transacción) → long (1 fila=unidad)
 # ============================================================
 
@@ -506,6 +601,8 @@ def _unpivot_ventas(df):
     ))
 
     if not nums:
+        if 'N_Unidad' in df.columns:
+            return _seleccionar_slot_por_n_unidad(df)
         print('   -> [UNPIVOT] Sin columnas Stub_N detectadas, retornando sin cambios')
         return df
 
@@ -655,6 +752,7 @@ def process_stock():
     df = pd.read_excel(max(archivos, key=os.path.getctime))
     df.columns = df.columns.str.strip()
     df = _filtrar_proyectos(df)
+    df = _normalizar_precio_moneda_stock(df)
 
     col_precio = next((c for c in ['PrecioVenta', 'PrecioLista'] if c in df.columns), None)
     col_moneda = 'Moneda' if 'Moneda' in df.columns else None
@@ -676,6 +774,7 @@ def process_ventas(df_stock_crudo=None):
     df = _leer_por_año(DOWNLOAD_DIR_VENTAS, "ReporteVenta", AÑOS)
     if df is None: return None
     df = _filtrar_proyectos(df)
+    df = _normalizar_moneda_ventas(df)
 
     # Unpivot: wide (1 fila=transacción) → long (1 fila=unidad)
     df = _unpivot_ventas(df)
@@ -855,6 +954,7 @@ def main():
         if archivos:
             df_stock_crudo = pd.read_excel(max(archivos, key=os.path.getctime))
             df_stock_crudo.columns = df_stock_crudo.columns.str.strip()
+            df_stock_crudo = _normalizar_precio_moneda_stock(df_stock_crudo)
             print(f"\n>> [MONEDA] Stock crudo cargado: {len(df_stock_crudo):,} filas")
     except Exception as e:
         print(f"!! Warning stock crudo: {e}")
