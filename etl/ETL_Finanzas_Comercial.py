@@ -780,7 +780,9 @@ def process_ventas(df_stock_crudo=None):
     df = _unpivot_ventas(df)
 
     # Precio por unidad: TotalLista es el precio individual de cada ítem
-    if 'TotalLista' in df.columns:
+    # (formato viejo). En el formato nuevo, PrecioVenta ya viene armado por
+    # _seleccionar_slot_por_n_unidad (via TotalVenta_OC_N) -> no pisarlo.
+    if 'PrecioVenta' not in df.columns and 'TotalLista' in df.columns:
         df['PrecioVenta'] = pd.to_numeric(df['TotalLista'], errors='coerce').fillna(0)
 
     col_fecha  = next((c for c in ['FechaVenta', 'FechaEntrega_Minuta'] if c in df.columns), None)
@@ -893,12 +895,26 @@ def upload_to_gsheets(dfs: dict):
                 print(f"   -> {tab_name}: sin datos, saltando")
                 continue
             try:
-                try: ws = sp.worksheet(tab_name); ws.clear()
-                except: ws = sp.add_worksheet(title=tab_name, rows=len(df)+10, cols=len(df.columns)+5)
+                filas_necesarias = len(df) + 10
+                cols_necesarias  = len(df.columns) + 5
+                try:
+                    ws = sp.worksheet(tab_name)
+                    nueva = False
+                except gspread.exceptions.WorksheetNotFound:
+                    ws = sp.add_worksheet(title=tab_name, rows=filas_necesarias, cols=cols_necesarias)
+                    nueva = True
+                if not nueva:
+                    ws.clear()
+                    # La hoja puede haber quedado angosta de una corrida anterior
+                    # con menos columnas (Evolta agrego columnas nuevas) -> resize
+                    # explicito para que no se recorten las ultimas columnas.
+                    if ws.row_count < filas_necesarias or ws.col_count < cols_necesarias:
+                        ws.resize(rows=max(ws.row_count, filas_necesarias),
+                                  cols=max(ws.col_count, cols_necesarias))
                 df_clean = _clean_df(df)
                 data = [df_clean.columns.tolist()] + df_clean.values.tolist()
                 ws.update(data, value_input_option="RAW")
-                print(f"   -> {tab_name}: {len(df):,} filas subidas")
+                print(f"   -> {tab_name}: {len(df):,} filas subidas ({len(df.columns)} columnas)")
             except Exception as e:
                 print(f"   !! Error subiendo {tab_name}: {e}")
 
