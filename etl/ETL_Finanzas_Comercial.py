@@ -9,7 +9,7 @@ Basado en ETL_Padova_MultiRol.py. Reutiliza misma lógica de
 login, descarga, tipo de cambio y upload a Sheets.
 """
 
-import time, os, glob, json, shutil, requests, traceback
+import time, os, glob, json, re, shutil, requests, traceback
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials as ServiceCredentials
@@ -489,27 +489,59 @@ def _filtrar_proyectos(df, col='Proyecto'):
 
 # ============================================================
 # NORMALIZACIÓN — Evolta renombró columnas (jul-2026):
-#   VENTAS: TipoMoneda -> Moneda_Base/Moneda_OC
+#   VENTAS: sigue siendo ancho (1 fila = 1 transacción, stubs _N por
+#           inmueble). Solo cambiaron los prefijos: TipoMoneda -> Moneda_OC,
 #           stubs PrecioBase_N/PrecioLista_N/DescuentoLista_N/TotalLista_N ->
-#           Precio_Base_N/PrecioLista_OC_N/DescuentoLista_OC_N/TotalVenta_OC_N,
-#           y el reporte ahora ya viene 1 fila = 1 unidad (T/M, TipoInmueble,
-#           NroInmueble, N_Unidad, etc. sin sufijo _N).
+#           Precio_Base_N/PrecioLista_OC_N/DescuentoLista_OC_N/TotalVenta_OC_N.
+#           Se traducen a los nombres viejos (_normalizar_moneda_ventas) y el
+#           unpivot de siempre (_unpivot_ventas) sigue funcionando igual.
 #   STOCK:  Moneda/PrecioVenta -> Moneda_Base/PrecioBase, Moneda_Lista/PrecioLista,
 #           Moneda_OC/PrecioVenta_OC.
 # ============================================================
 
+_RENAME_VENTAS_GLOBAL = {
+    'PrecioVenta_OC':        'PrecioVenta',
+    'MontoDescuento_OC':     'MontoDescuento',
+    'MontoSeparacion_OC':    'MontoSeparacion',
+    'BonoVerde_OC':          'BonoVerde',
+    'MontoBono_OC':          'MontoBono',
+    'MontoPagadoBono_OC':    'MontoPagadoBono',
+    'MontoCuotaInicial_OC':  'MontoCuotaInicial',
+    'MontoPagadoCI_OC':      'MontoPagadoCI',
+    'MontoFinanciamiento_OC':'MontoFinanciamiento',
+    'MontoDesembolsado_OC':  'MontoDesembolsado',
+    'Moneda_OC':             'TipoMoneda',
+}
+
+_RENAME_VENTAS_INMUEBLE_PATTERNS = [
+    (re.compile(r'^Precio_Base_(\d+)$'),       'PrecioBase_{}'),
+    (re.compile(r'^PrecioLista_OC_(\d+)$'),    'PrecioLista_{}'),
+    (re.compile(r'^DescuentoLista_OC_(\d+)$'), 'DescuentoLista_{}'),
+    (re.compile(r'^TotalVenta_OC_(\d+)$'),     'TotalLista_{}'),
+]
+
+
 def _normalizar_moneda_ventas(df):
-    """Crea TipoMoneda a partir de Moneda_OC (prioridad) o Moneda_Base si el
-    reporte ya no trae la columna TipoMoneda tal cual."""
-    if 'TipoMoneda' in df.columns:
+    """Traduce headers nuevos de Evolta (ventas) a los nombres internos
+    viejos: PrecioVenta_OC->PrecioVenta, Moneda_OC->TipoMoneda, y los stubs
+    por inmueble Precio_Base_N/PrecioLista_OC_N/DescuentoLista_OC_N/
+    TotalVenta_OC_N -> PrecioBase_N/PrecioLista_N/DescuentoLista_N/TotalLista_N.
+    Si el reporte viene en formato viejo, ninguna de estas columnas existe y
+    el rename queda vacio (no-op)."""
+    rename_map = {k: v for k, v in _RENAME_VENTAS_GLOBAL.items() if k in df.columns}
+    for col in df.columns:
+        for pattern, target in _RENAME_VENTAS_INMUEBLE_PATTERNS:
+            m = pattern.match(col)
+            if m:
+                rename_map[col] = target.format(m.group(1))
+                break
+    if not rename_map:
         return df
-    if 'Moneda_OC' not in df.columns and 'Moneda_Base' not in df.columns:
-        return df
-    df = df.copy()
-    moneda_oc   = df['Moneda_OC'].astype(str).str.strip() if 'Moneda_OC' in df.columns else pd.Series('', index=df.index)
-    moneda_base = df['Moneda_Base'].astype(str).str.strip() if 'Moneda_Base' in df.columns else pd.Series('', index=df.index)
-    df['TipoMoneda'] = moneda_oc.where(moneda_oc != '', moneda_base)
-    print('   -> [MONEDA] TipoMoneda derivado de Moneda_OC/Moneda_Base')
+    print(f'   -> [HEADERS] Ventas: renombrando {len(rename_map)} columna(s) al formato interno')
+    df = df.rename(columns=rename_map)
+    # Fallback si Moneda_OC no existia (unidad sin OC todavia) pero si Moneda_Base
+    if 'TipoMoneda' not in df.columns and 'Moneda_Base' in df.columns:
+        df = df.rename(columns={'Moneda_Base': 'TipoMoneda'})
     return df
 
 
@@ -779,10 +811,11 @@ def process_ventas(df_stock_crudo=None):
     # Unpivot: wide (1 fila=transacción) → long (1 fila=unidad)
     df = _unpivot_ventas(df)
 
-    # Precio por unidad: TotalLista es el precio individual de cada ítem
-    # (formato viejo). En el formato nuevo, PrecioVenta ya viene armado por
-    # _seleccionar_slot_por_n_unidad (via TotalVenta_OC_N) -> no pisarlo.
-    if 'PrecioVenta' not in df.columns and 'TotalLista' in df.columns:
+    # Precio por unidad: TotalLista es el precio individual de cada item.
+    # PrecioVenta (columna fija) es el total de TODO el combo/transaccion,
+    # duplicado en cada fila del unpivot -> siempre hay que pisarlo con
+    # TotalLista, que es el precio correcto por unidad.
+    if 'TotalLista' in df.columns:
         df['PrecioVenta'] = pd.to_numeric(df['TotalLista'], errors='coerce').fillna(0)
 
     col_fecha  = next((c for c in ['FechaVenta', 'FechaEntrega_Minuta'] if c in df.columns), None)
