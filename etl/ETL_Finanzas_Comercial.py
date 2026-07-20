@@ -116,7 +116,9 @@ def precargar_tc_fechas(fechas_set):
         if tc_raw is None:
             tc_raw = _fetch_tc_bcrp(fecha_str)
         if tc_raw:
-            _TC_CACHE[fecha_str] = round(tc_raw, 2)
+            # SUNAT publica el TC con 3 decimales (ej. 3.397) -- redondear a 2
+            # pierde precision real en montos convertidos.
+            _TC_CACHE[fecha_str] = round(tc_raw, 3)
             ok += 1
         time.sleep(SUNAT_REQUEST_DELAY_SECONDS)
     _guardar_cache_disco()
@@ -148,7 +150,7 @@ def get_tipo_cambio(fecha=None):
             return _TC_CACHE[f]
         tc_raw = _fetch_tc_eapi(f) or _fetch_tc_bcrp(f)
         if tc_raw:
-            tc = round(tc_raw, 2)
+            tc = round(tc_raw, 3)
             print(f'   -> [TC] {fecha_str}: S/ {tc}')
             _TC_CACHE[fecha_str] = tc
             _TC_CACHE[f] = tc
