@@ -4,3 +4,7 @@ requests
 pandas
 apscheduler
 pytz
+openpyxl
+msal
+tenacity
+python-dotenv

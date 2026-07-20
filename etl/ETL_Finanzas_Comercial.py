@@ -1,24 +1,28 @@
 """
 ETL Finanzas-Comercial — Padova SAC
-Descarga 3 reportes de Evolta y los sube a Google Sheets:
+Descarga 3 reportes de Evolta y los sube a SharePoint/OneDrive corporativo:
   - VENTAS
   - STOCK
   - FLUJO_CAJA
 
 Basado en ETL_Padova_MultiRol.py. Reutiliza misma lógica de
-login, descarga, tipo de cambio y upload a Sheets.
+tipo de cambio; la extraccion ahora es directa via API (sin
+Selenium/navegador, ver evolta_client.py) y el upload va a un
+Excel en SharePoint en vez de Google Sheets (ver sharepoint_client.py).
 """
 
-import time, os, glob, json, shutil, requests, traceback
+import time, os, json, tempfile, shutil, requests, traceback
+from pathlib import Path
 import pandas as pd
-import gspread
-from google.oauth2.service_account import Credentials as ServiceCredentials
 from datetime import datetime, timedelta
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait, Select
-from selenium.webdriver.support import expected_conditions as EC
+from sharepoint_client import SharePointClient
+from evolta_client import EvoltaDirectClient, leer_excel_bytes
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # ============================================================
 # TIPO DE CAMBIO
@@ -54,6 +58,25 @@ def _guardar_cache_disco():
         print(f'   -> [TC] Error guardando cache disco: {e}')
 
 
+# Fuente oficial SUNAT (misma API validada en tc-service contra el Master de
+# Ventas real: devuelve compra/venta correctos y ya incluye el arrastre de
+# fin de semana de SUNAT). Rate limit observado: 429 tras ~3 llamadas rapidas,
+# por eso el espaciado de 1.5s entre consultas en precargar_tc_fechas.
+SUNAT_API_BASE = 'https://api.apis.net.pe/v1/tipo-cambio-sunat'
+SUNAT_REQUEST_DELAY_SECONDS = 1.5
+
+
+def _fetch_tc_sunat_oficial(fecha_str):
+    try:
+        r = requests.get(SUNAT_API_BASE, params={'fecha': fecha_str}, timeout=10)
+        if r.status_code == 429:
+            return None
+        r.raise_for_status()
+        data = r.json()
+        return float(data['venta']) if data.get('venta') else None
+    except: return None
+
+
 def _fetch_tc_eapi(fecha_str):
     try:
         r = requests.get(f'https://free.e-api.net.pe/tipo-cambio/{fecha_str}.json', timeout=10)
@@ -75,24 +98,27 @@ def _fetch_tc_bcrp(fecha_str):
 
 def precargar_tc_fechas(fechas_set):
     """
-    Pre-carga el cache con TC SUNAT venta (e-api) para las fechas dadas.
-    Solo consulta fechas que NO esten ya en el cache (disco + memoria).
-    Fallback a BCRP si e-api falla. Guarda en disco al terminar.
+    Pre-carga el cache con TC SUNAT venta (fuente oficial api.apis.net.pe)
+    para las fechas dadas. Solo consulta fechas que NO esten ya en el cache
+    (disco + memoria). Fallback a e-api y luego a BCRP si la oficial falla
+    (caida puntual o 429). Guarda en disco al terminar.
     """
     pendientes = sorted(f for f in fechas_set if f and f not in _TC_CACHE)
     if not pendientes:
         print(f'   -> [TC] Todas las fechas ya estan en cache ({len(_TC_CACHE)} total)')
         return
-    print(f'   -> [TC] Consultando {len(pendientes)} fechas nuevas en SUNAT (e-api)...')
+    print(f'   -> [TC] Consultando {len(pendientes)} fechas nuevas en SUNAT (oficial)...')
     ok = 0
     for fecha_str in pendientes:
-        tc_raw = _fetch_tc_eapi(fecha_str)
+        tc_raw = _fetch_tc_sunat_oficial(fecha_str)
+        if tc_raw is None:
+            tc_raw = _fetch_tc_eapi(fecha_str)
         if tc_raw is None:
             tc_raw = _fetch_tc_bcrp(fecha_str)
         if tc_raw:
             _TC_CACHE[fecha_str] = round(tc_raw, 2)
             ok += 1
-        time.sleep(0.15)
+        time.sleep(SUNAT_REQUEST_DELAY_SECONDS)
     _guardar_cache_disco()
     print(f'   -> [TC] {ok}/{len(pendientes)} TCs obtenidos y guardados')
 
@@ -172,313 +198,92 @@ def convertir_monedas(df, col_precio, col_moneda, col_fecha=None):
 # CONFIGURACIÓN
 # ============================================================
 
-USER_CRED = os.environ.get("EVOLTA_USER", "calopez")
-PASS_CRED = os.environ.get("EVOLTA_PASS", "")
-EMAIL_FROM = "sistema.padova@gmail.com"
-EMAIL_PASS = os.environ.get("EMAIL_PASS", "")
-
-URL_LOGIN              = "https://v4.evolta.pe/Login/Acceso/Index"
-URL_REPORTE_STOCK      = "https://v4.evolta.pe/Reportes/RepCargaStock/IndexNuevoRepStock"
-URL_REPORTE_VENTAS     = "https://v4.evolta.pe/Reportes/RepVenta/Index"
-URL_REPORTE_FLUJO_CAJA = "https://v4.evolta.pe/Reportes/RepFlujoCaga/Index"
+EVOLTA_USER = os.environ.get("EVOLTA_USER", "calopez")
+EVOLTA_PASS = os.environ.get("EVOLTA_PASS", "")
 
 TARGET_PROJECTS = [
     'SUNNY', 'LITORAL 900', 'HELIO - SANTA BEATRIZ',
     'LOMAS DE CARABAYLLO', 'DOMINGO ORUE'
 ]
 
-IS_CLOUD = os.name != 'nt'
+# Rango de fechas para Ventas y Flujo de Caja. Antes se pedia por año via
+# Selenium (un click por año); la API directa acepta el rango completo en
+# una sola llamada (confirmado 2026-07-20: 2023-hoy -> 1,163 filas / 14s).
+FECHA_INICIO_REPORTES = "01/01/2023"
+ANIO_INICIO_FLUJO_CAJA = "2023"
+MES_INICIO_FLUJO_CAJA = "1"
 
-if IS_CLOUD:
-    DOWNLOAD_DIR_STOCK  = "/tmp/fc_stock"
-    DOWNLOAD_DIR_VENTAS = "/tmp/fc_ventas"
-    DOWNLOAD_DIR_FLUJO  = "/tmp/fc_flujo"
-else:
-    DOWNLOAD_DIR_STOCK  = r"C:\Users\MKT\Documents\EVOLTA\fc_stock"
-    DOWNLOAD_DIR_VENTAS = r"C:\Users\MKT\Documents\EVOLTA\fc_ventas"
-    DOWNLOAD_DIR_FLUJO  = r"C:\Users\MKT\Documents\EVOLTA\fc_flujo"
-
-# ⬇ Cambia este ID por el del nuevo Google Sheet que crees para este dashboard
-GSHEETS_SPREADSHEET_ID = os.environ.get("GSHEETS_SPREADSHEET_ID", "")
-
-AÑOS = [2023, 2024, 2025, 2026]
-
-for d in [DOWNLOAD_DIR_STOCK, DOWNLOAD_DIR_VENTAS, DOWNLOAD_DIR_FLUJO]:
-    os.makedirs(d, exist_ok=True)
-
-
-def _load_gsheets_credentials():
-    import base64, tempfile
-    b64 = os.environ.get("GSHEETS_CREDENTIALS_B64", "")
-    if b64:
-        creds_dict = json.loads(base64.b64decode(b64).decode("utf-8"))
-        tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
-        json.dump(creds_dict, tmp); tmp.flush()
-        return tmp.name
-    local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "evoltareportes-00ffe1b337be.json")
-    if os.path.exists(local_path): return local_path
-    raise FileNotFoundError("No se encontraron credenciales de Google.")
-
-GSHEETS_CREDENTIALS_FILE = _load_gsheets_credentials()
+# Carpeta y nombre del Excel en SharePoint (mismo patron que tc-service)
+SHAREPOINT_DASHBOARD_FOLDER = os.environ.get(
+    "SHAREPOINT_DASHBOARD_FOLDER",
+    "FINANZAS/TI/AUTOMATIZACIONES/DASHBOARD_FINANZAS_COMERCIAL",
+)
+SHAREPOINT_DASHBOARD_FILENAME = os.environ.get(
+    "SHAREPOINT_DASHBOARD_FILENAME", "Dashboard_Finanzas_Comercial.xlsx"
+)
 
 
 # ============================================================
-# SELENIUM — helpers
+# EXTRACCIÓN — EVOLTA DIRECTO (sin navegador)
 # ============================================================
 
-def get_driver(download_dir):
-    os.makedirs(download_dir, exist_ok=True)
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless=new")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-extensions")
-    options.add_argument("--log-level=3")
-    prefs = {
-        "download.default_directory": download_dir,
-        "download.prompt_for_download": False,
-        "download.directory_upgrade": True,
-        "safebrowsing.enabled": True,
-    }
-    options.add_experimental_option("prefs", prefs)
-    return webdriver.Chrome(options=options) if IS_CLOUD else webdriver.Chrome(options=options)
+# Espaciado entre los 3 reportes contra apiwebcr.evoltacomunica.com. Al
+# probar esto por primera vez (2026-07-20), pedir los 3 reportes casi sin
+# pausa (ritmo de maquina) hizo fallar de forma intermitente cualquiera de
+# ellos que quedara primero (400 / timeout / conexion reiniciada) -- una
+# persona navegando manualmente por las 3 pantallas nunca tuvo ese problema,
+# porque entre cada clic pasan varios segundos. Mismo sintoma y misma
+# solucion que ya usamos con el 429 de la API de SUNAT (ver
+# SUNAT_REQUEST_DELAY_SECONDS): espaciar las llamadas en vez de pelear
+# contra el limite.
+EVOLTA_REPORT_DELAY_SECONDS = 5
 
 
-def dismiss_popup(driver):
+def extraer_reportes_evolta():
+    """Login + descarga de los 3 reportes via API directa de EVOLTA
+    (evolta_client.py). Devuelve dict {'stock', 'ventas', 'flujo_caja'}
+    con DataFrames crudos (cualquiera puede ser None si Evolta fallo)."""
+    print("\n>> [EVOLTA] Login directo...")
+    client = EvoltaDirectClient(EVOLTA_USER, EVOLTA_PASS)
+    client.login()
+    print(">> [EVOLTA] Login OK")
+
+    client.calentar_conexion_reportes()
+
+    hoy = datetime.now().strftime("%d/%m/%Y")
+    resultado = {}
+
+    print("\n>> [VENTAS] Descargando...")
     try:
-        driver.find_element(By.TAG_NAME, 'body').send_keys(Keys.ESCAPE)
-        time.sleep(1)
-    except: pass
-
-
-def robust_login(driver, wait):
-    print(">> [LOGIN] Iniciando...")
-    driver.get(URL_LOGIN)
-    wait.until(EC.presence_of_element_located((By.TAG_NAME, "input")))
-    try: user_field = driver.find_element(By.ID, "UserName")
-    except:
-        try: user_field = driver.find_element(By.NAME, "Usuario")
-        except: user_field = driver.find_element(By.XPATH, "//input[@type='text']")
-    user_field.clear()
-    user_field.send_keys(USER_CRED)
-    driver.find_element(By.XPATH, "//input[@type='password']").send_keys(PASS_CRED)
-    try: driver.find_element(By.XPATH, "//button[@type='submit'] | //input[@type='submit']").click()
-    except: pass
-    time.sleep(3)
-    dismiss_popup(driver)
-    print(">> [LOGIN] OK")
-
-
-def esperar_descarga_nueva(watch_dir, existing, timeout=300):
-    elapsed = 0
-    while elapsed < timeout:
-        current = set(glob.glob(os.path.join(watch_dir, "*.*")))
-        nuevos = [f for f in (current - existing)
-                  if not f.endswith(('.crdownload', '.tmp')) and os.path.getsize(f) > 0]
-        if nuevos:
-            return nuevos[0]
-        time.sleep(1); elapsed += 1
-    return None
-
-
-def _set_fechas_js(driver, fecha_inicio, fecha_fin):
-    driver.execute_script(f"""
-        var inputs = document.querySelectorAll('input');
-        var df = [];
-        for(var i=0;i<inputs.length;i++){{
-            var v=inputs[i].value||'';
-            if(v.match(/\\d{{2}}\\/\\d{{2}}\\/\\d{{4}}/)) df.push(inputs[i]);
-        }}
-        if(df.length>=2){{
-            df[0].value='{fecha_inicio}'; df[0].dispatchEvent(new Event('change',{{bubbles:true}}));
-            df[1].value='{fecha_fin}';    df[1].dispatchEvent(new Event('change',{{bubbles:true}}));
-        }}
-    """)
-    time.sleep(1)
-
-
-def _click_exportar(driver, wait):
-    for xpath in ["//button[contains(text(),'Exportar')]", "//button[@id='btnExportar']", "//button[@type='submit']"]:
-        try:
-            btn = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
-            driver.execute_script("arguments[0].click();", btn)
-            print("   -> Click en Exportar")
-            return
-        except: pass
-
-
-def _mover_descarga(archivo, destino):
-    if os.path.exists(destino): os.remove(destino)
-    shutil.move(archivo, destino)
-    print(f"   -> [OK] {os.path.basename(destino)}")
-
-
-# ============================================================
-# EXTRACCIÓN — STOCK
-# ============================================================
-
-def execute_stock_extraction(driver, wait):
-    print(f"\n>> [STOCK] Descargando...")
-    driver.get(URL_REPORTE_STOCK)
-    time.sleep(3); dismiss_popup(driver)
-    try:
-        try: sel = wait.until(EC.presence_of_element_located((By.ID, "ProyectoId")))
-        except: sel = driver.find_element(By.TAG_NAME, "select")
-        try: Select(sel).select_by_visible_text("Todos")
-        except:
-            try: Select(sel).select_by_visible_text("TODOS")
-            except: Select(sel).select_by_index(0)
-        time.sleep(1)
+        resultado['ventas'] = leer_excel_bytes(client.export_ventas(FECHA_INICIO_REPORTES, hoy))
+        print(f"   -> VENTAS: {len(resultado['ventas']):,} filas")
     except Exception as e:
-        print(f"   !! Warning selector: {e}")
+        print(f"   !! Error VENTAS: {e}")
+        resultado['ventas'] = None
 
-    # Limpiar descargas previas antes de medir nuevas
-    for f in glob.glob(os.path.join(DOWNLOAD_DIR_STOCK, "*.xlsx")):
-        try: os.remove(f)
-        except: pass
-
-    existing = set(glob.glob(os.path.join(DOWNLOAD_DIR_STOCK, "*.*")))
-    export_btn = wait.until(EC.element_to_be_clickable((By.ID, "btnExportar")))
-    driver.execute_script("arguments[0].click();", export_btn)
-
-    archivo = esperar_descarga_nueva(DOWNLOAD_DIR_STOCK, existing, timeout=480)
-    if not archivo:
-        print("   !! No se descargó stock"); return None
-    dest = os.path.join(DOWNLOAD_DIR_STOCK, "ReporteStock.xlsx")
-    _mover_descarga(archivo, dest)
-    return dest
-
-
-# ============================================================
-# EXTRACCIÓN — VENTAS (por año)
-# ============================================================
-
-def execute_ventas_año(driver, wait, año):
-    print(f"\n>> [VENTAS {año}]")
-    driver.get(URL_REPORTE_VENTAS)
-    time.sleep(4); dismiss_popup(driver)
-    fecha_inicio = f"01/01/{año}"
-    fecha_fin = f"31/12/{año}" if año < datetime.now().year else datetime.now().strftime("%d/%m/%Y")
-    _set_fechas_js(driver, fecha_inicio, fecha_fin)
-    # Seleccionar CSV si está disponible
+    time.sleep(EVOLTA_REPORT_DELAY_SECONDS)
+    print("\n>> [STOCK] Descargando...")
     try:
-        csv_radio = driver.find_element(By.XPATH, "//input[@type='radio'][@value='Csv' or @value='csv' or @value='CSV']")
-        driver.execute_script("arguments[0].click();", csv_radio)
-    except: pass
-    existing = set(glob.glob(os.path.join(DOWNLOAD_DIR_VENTAS, "*.*")))
-    _click_exportar(driver, wait)
-    time.sleep(5)
-    archivo = esperar_descarga_nueva(DOWNLOAD_DIR_VENTAS, existing, timeout=120)
-    if archivo:
-        ext = os.path.splitext(archivo)[1].lower()
-        dest = os.path.join(DOWNLOAD_DIR_VENTAS, f"ReporteVenta{año}{ext}")
-        _mover_descarga(archivo, dest)
-    else:
-        print(f"   !! No se descargó ventas {año}")
+        resultado['stock'] = leer_excel_bytes(client.export_stock())
+        print(f"   -> STOCK: {len(resultado['stock']):,} filas")
+    except Exception as e:
+        print(f"   !! Error STOCK: {e}")
+        resultado['stock'] = None
 
-def execute_ventas_extraction(driver, wait):
-    print("\n" + "="*60)
-    print(">> [VENTAS] Iniciando descarga por año")
-    for f in glob.glob(os.path.join(DOWNLOAD_DIR_VENTAS, "*.*")):
-        try: os.remove(f)
-        except: pass
-    for año in AÑOS:
-        try: execute_ventas_año(driver, wait, año); time.sleep(2)
-        except Exception as e: print(f"   !! Error ventas {año}: {e}")
+    time.sleep(EVOLTA_REPORT_DELAY_SECONDS)
+    print("\n>> [FLUJO_CAJA] Descargando...")
+    try:
+        contenido = client.export_flujo_caja(
+            ANIO_INICIO_FLUJO_CAJA, MES_INICIO_FLUJO_CAJA,
+            str(datetime.now().year), str(datetime.now().month),
+        )
+        resultado['flujo_caja'] = leer_excel_bytes(contenido)
+        print(f"   -> FLUJO_CAJA: {len(resultado['flujo_caja']):,} filas")
+    except Exception as e:
+        print(f"   !! Error FLUJO_CAJA: {e}")
+        resultado['flujo_caja'] = None
 
-
-# ============================================================
-# EXTRACCIÓN — FLUJO DE CAJA (por año)
-# ============================================================
-
-def _set_filtros_flujo_caja(driver):
-    """
-    Configura los dropdowns del reporte Flujo de Caja en Evolta:
-    Proyecto=TODOS, Etapa=TODOS, Año Ini=2023/Enero, Año Fin=actual/mes actual.
-    """
-    now   = datetime.now()
-    MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-             'Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre']
-    año_fin = str(now.year)
-    mes_fin = MESES[now.month - 1]
-
-    selects  = driver.find_elements(By.TAG_NAME, "select")
-    año_sels, mes_sels = [], []
-
-    for sel in selects:
-        opts   = [o.text.strip() for o in sel.find_elements(By.TAG_NAME, "option")]
-        opts_u = [o.upper() for o in opts]
-        if any(str(y) in opts for y in range(2020, 2030)):
-            año_sels.append(sel)
-        elif any(m in opts for m in MESES):
-            mes_sels.append(sel)
-        elif 'TODOS' in opts_u or 'TODO' in opts_u or 'ETAPA COMERCIAL' in opts_u:
-            for txt in ['TODOS', 'Todos', 'Todo']:
-                try: Select(sel).select_by_visible_text(txt); time.sleep(0.3); break
-                except: pass
-
-    if año_sels:
-        try: Select(año_sels[0]).select_by_visible_text('2023'); time.sleep(0.3)
-        except: pass
-    if len(año_sels) >= 2:
-        try: Select(año_sels[1]).select_by_visible_text(año_fin); time.sleep(0.3)
-        except: pass
-    if mes_sels:
-        try: Select(mes_sels[0]).select_by_visible_text('Enero'); time.sleep(0.3)
-        except: pass
-    if len(mes_sels) >= 2:
-        try: Select(mes_sels[1]).select_by_visible_text(mes_fin); time.sleep(0.3)
-        except: pass
-
-    print(f"   -> Filtros: Enero 2023 - {mes_fin} {año_fin}")
-
-
-def execute_flujo_caja_extraction(driver, wait):
-    """Descarga unica del reporte Flujo de Caja con rango 2023 - hoy."""
-    print("\n" + "="*60)
-    print(">> [FLUJO_CAJA] Descarga unica (Ene 2023 - hoy)")
-    for f in glob.glob(os.path.join(DOWNLOAD_DIR_FLUJO, "*.*")):
-        try: os.remove(f)
-        except: pass
-
-    driver.get(URL_REPORTE_FLUJO_CAJA)
-    time.sleep(4); dismiss_popup(driver)
-    _set_filtros_flujo_caja(driver)
-
-    existing = set(glob.glob(os.path.join(DOWNLOAD_DIR_FLUJO, "*.*")))
-    _click_exportar(driver, wait)
-    time.sleep(5)
-    archivo = esperar_descarga_nueva(DOWNLOAD_DIR_FLUJO, existing, timeout=480)
-    if archivo:
-        ext  = os.path.splitext(archivo)[1].lower()
-        dest = os.path.join(DOWNLOAD_DIR_FLUJO, f"ReporteFlujoCajaTotal{ext}")
-        _mover_descarga(archivo, dest)
-    else:
-        print("   !! No se descargo flujo_caja")
-        driver.save_screenshot(os.path.join(DOWNLOAD_DIR_FLUJO, "debug_flujo_total.png"))
-
-
-# ============================================================
-# TRANSFORMACIÓN — helpers
-# ============================================================
-
-def _leer_por_año(directorio, prefijo, años):
-    dfs = []
-    for año in años:
-        for ext in ['.csv', '.xlsx']:
-            ruta = os.path.join(directorio, f"{prefijo}{año}{ext}")
-            if not os.path.exists(ruta): continue
-            try:
-                df = pd.read_csv(ruta, encoding='utf-8', low_memory=False) if ext == '.csv' else pd.read_excel(ruta)
-                df['AÑO'] = año
-                dfs.append(df)
-                print(f"   -> {prefijo}{año}: {len(df):,} filas")
-                break
-            except Exception as e:
-                print(f"   !! Error leyendo {ruta}: {e}")
-    return pd.concat(dfs, ignore_index=True) if dfs else None
+    return resultado
 
 
 def _filtrar_proyectos(df, col='Proyecto'):
@@ -745,11 +550,10 @@ def corregir_moneda_con_stock(df_ventas, df_stock):
 # TRANSFORMACIÓN — STOCK
 # ============================================================
 
-def process_stock():
+def process_stock(df):
     print("\n>> [TRANSFORM STOCK]")
-    archivos = glob.glob(os.path.join(DOWNLOAD_DIR_STOCK, "*.xlsx"))
-    if not archivos: return None
-    df = pd.read_excel(max(archivos, key=os.path.getctime))
+    if df is None: return None
+    df = df.copy()
     df.columns = df.columns.str.strip()
     df = _filtrar_proyectos(df)
     df = _normalizar_precio_moneda_stock(df)
@@ -769,10 +573,10 @@ def process_stock():
 # TRANSFORMACIÓN — VENTAS
 # ============================================================
 
-def process_ventas(df_stock_crudo=None):
+def process_ventas(df, df_stock_crudo=None):
     print("\n>> [TRANSFORM VENTAS]")
-    df = _leer_por_año(DOWNLOAD_DIR_VENTAS, "ReporteVenta", AÑOS)
     if df is None: return None
+    df = df.copy()
     df = _filtrar_proyectos(df)
     df = _normalizar_moneda_ventas(df)
 
@@ -812,32 +616,17 @@ def process_ventas(df_stock_crudo=None):
 # TRANSFORMACIÓN — FLUJO DE CAJA
 # ============================================================
 
-def process_flujo_caja():
-    """
-    Lee y procesa el reporte de Flujo de Caja.
-    NOTA: Las columnas exactas se conocerán cuando Evolta exporte
-    el reporte por primera vez. Esta función las detecta dinámicamente.
-    Ajustar col_monto / col_moneda / col_fecha una vez que se vea el Excel.
-    """
+def process_flujo_caja(df):
+    """Procesa el reporte de Flujo de Caja. Detecta las columnas de
+    monto/moneda/fecha dinamicamente (el nombre exacto puede variar)."""
     print("\n>> [TRANSFORM FLUJO_CAJA]")
-    df = None
-    for ext in ['.csv', '.xlsx']:
-        ruta = os.path.join(DOWNLOAD_DIR_FLUJO, f"ReporteFlujoCajaTotal{ext}")
-        if not os.path.exists(ruta):
-            continue
-        try:
-            df = pd.read_csv(ruta, encoding='utf-8', low_memory=False) if ext == '.csv' else pd.read_excel(ruta)
-            print(f"   -> ReporteFlujoCajaTotal: {len(df):,} filas")
-            break
-        except Exception as e:
-            print(f"   !! Error leyendo {ruta}: {e}")
     if df is None:
         print("   !! Sin datos de flujo de caja todavía")
         return None
-
+    df = df.copy()
     df = _filtrar_proyectos(df)
 
-    # Detectar columnas dinámicamente — ajustar cuando se vea el reporte real
+    # Detectar columnas dinámicamente
     col_monto  = next((c for c in df.columns if any(k in c.lower() for k in ['monto', 'importe', 'cuota', 'pago'])), None)
     col_moneda = next((c for c in df.columns if any(k in c.lower() for k in ['moneda', 'tipo_mon'])), None)
     col_fecha  = next((c for c in df.columns if any(k in c.lower() for k in ['fecha', 'vencim'])), None)
@@ -857,54 +646,46 @@ def process_flujo_caja():
 
 
 # ============================================================
-# UPLOAD A GOOGLE SHEETS
+# UPLOAD A SHAREPOINT/ONEDRIVE CORPORATIVO
 # ============================================================
 
-def _gsheets_client():
-    scopes = ["https://www.googleapis.com/auth/spreadsheets",
-              "https://www.googleapis.com/auth/drive"]
-    creds = ServiceCredentials.from_service_account_file(GSHEETS_CREDENTIALS_FILE, scopes=scopes)
-    return gspread.authorize(creds)
-
-
 def _clean_df(df):
-    """Limpia NaN/inf para que Sheets los acepte."""
+    """Limpia NaN/inf para que el Excel no falle al escribir."""
     def _c(x):
         if x is None: return ""
         try:
             if pd.isna(x): return ""
         except: pass
         if isinstance(x, float) and (x != x or abs(x) == float('inf')): return ""
-        return str(x)
+        return x
     return pd.concat([df[col].apply(_c) for col in df.columns], axis=1)
 
 
-def upload_to_gsheets(dfs: dict):
+def upload_to_sharepoint(dfs: dict):
     """
     dfs: {'VENTAS': df, 'STOCK': df, 'FLUJO_CAJA': df}
+    Arma un solo Excel (una hoja por tab) y lo sube a la carpeta corporativa
+    de SharePoint, reemplazando el archivo anterior (mismo nombre).
     """
-    print("\n>> [GOOGLE SHEETS] Subiendo datos...")
+    print("\n>> [SHAREPOINT] Subiendo datos...")
+    tmp_dir = tempfile.mkdtemp(prefix="dashboard_fc_")
+    local_path = Path(tmp_dir) / SHAREPOINT_DASHBOARD_FILENAME
     try:
-        client = _gsheets_client()
-        sp = client.open_by_key(GSHEETS_SPREADSHEET_ID)
+        with pd.ExcelWriter(local_path, engine="openpyxl") as writer:
+            for tab_name, df in dfs.items():
+                if df is None or len(df) == 0:
+                    print(f"   -> {tab_name}: sin datos, saltando")
+                    continue
+                _clean_df(df).to_excel(writer, sheet_name=tab_name, index=False)
+                print(f"   -> {tab_name}: {len(df):,} filas listas")
 
-        for tab_name, df in dfs.items():
-            if df is None or len(df) == 0:
-                print(f"   -> {tab_name}: sin datos, saltando")
-                continue
-            try:
-                try: ws = sp.worksheet(tab_name); ws.clear()
-                except: ws = sp.add_worksheet(title=tab_name, rows=len(df)+10, cols=len(df.columns)+5)
-                df_clean = _clean_df(df)
-                data = [df_clean.columns.tolist()] + df_clean.values.tolist()
-                ws.update(data, value_input_option="RAW")
-                print(f"   -> {tab_name}: {len(df):,} filas subidas")
-            except Exception as e:
-                print(f"   !! Error subiendo {tab_name}: {e}")
-
-        print(f"   -> Dashboard: https://docs.google.com/spreadsheets/d/{GSHEETS_SPREADSHEET_ID}")
+        client = SharePointClient()
+        client.upload_file(local_path, SHAREPOINT_DASHBOARD_FOLDER)
+        print(f"   -> Subido a SharePoint: {SHAREPOINT_DASHBOARD_FOLDER}/{SHAREPOINT_DASHBOARD_FILENAME}")
     except Exception as e:
-        print(f"!! GSHEETS ERROR: {e}"); traceback.print_exc()
+        print(f"!! SHAREPOINT ERROR: {e}"); traceback.print_exc()
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ============================================================
@@ -920,52 +701,29 @@ def main():
     # Cargar cache TC desde disco (e-api SUNAT venta, 2 decimales)
     _cargar_cache_disco()
 
-    driver = get_driver(DOWNLOAD_DIR_STOCK)
-    wait   = WebDriverWait(driver, 30)
+    crudos = extraer_reportes_evolta()
 
-    try:
-        robust_login(driver, wait)
-
-        execute_stock_extraction(driver, wait)
-
-        # Cambiar dir de descarga a ventas antes de extraer ventas
-        driver.execute_cdp_cmd("Page.setDownloadBehavior", {
-            "behavior": "allow",
-            "downloadPath": os.path.abspath(DOWNLOAD_DIR_VENTAS)
-        })
-        execute_ventas_extraction(driver, wait)
-
-        # Cambiar dir de descarga a flujo antes de extraer flujo
-        driver.execute_cdp_cmd("Page.setDownloadBehavior", {
-            "behavior": "allow",
-            "downloadPath": os.path.abspath(DOWNLOAD_DIR_FLUJO)
-        })
-        execute_flujo_caja_extraction(driver, wait)
-
-    except Exception as e:
-        print(f"!! CRITICAL ERROR: {e}"); traceback.print_exc()
-    finally:
-        driver.quit()
-
-    # Leer stock crudo para corregir moneda en ventas
+    # Stock crudo (columnas normalizadas) para el lookup de moneda en ventas
     df_stock_crudo = None
-    try:
-        archivos = glob.glob(os.path.join(DOWNLOAD_DIR_STOCK, "*.xlsx"))
-        if archivos:
-            df_stock_crudo = pd.read_excel(max(archivos, key=os.path.getctime))
-            df_stock_crudo.columns = df_stock_crudo.columns.str.strip()
-            df_stock_crudo = _normalizar_precio_moneda_stock(df_stock_crudo)
-            print(f"\n>> [MONEDA] Stock crudo cargado: {len(df_stock_crudo):,} filas")
-    except Exception as e:
-        print(f"!! Warning stock crudo: {e}")
+    if crudos['stock'] is not None:
+        df_stock_crudo = crudos['stock'].copy()
+        df_stock_crudo.columns = df_stock_crudo.columns.str.strip()
+        df_stock_crudo = _normalizar_precio_moneda_stock(df_stock_crudo)
 
     # Transformar
-    df_stock      = process_stock()
-    df_ventas     = process_ventas(df_stock_crudo)
-    df_flujo_caja = process_flujo_caja()
+    df_stock      = process_stock(crudos['stock'])
+    df_ventas     = process_ventas(crudos['ventas'], df_stock_crudo)
+    df_flujo_caja = process_flujo_caja(crudos['flujo_caja'])
 
-    # Subir a Sheets
-    upload_to_gsheets({
+    # Guardar cache TC en disco: precargar_tc_fechas ya lo hace para las
+    # fechas de Ventas, pero process_stock/process_flujo_caja tambien agregan
+    # fechas nuevas a traves de get_tipo_cambio() (usado por convertir_monedas)
+    # sin persistirlas -- sin este guardado, esas fechas (Stock puede tener
+    # historial de varios anios) se re-consultarian desde cero en cada corrida.
+    _guardar_cache_disco()
+
+    # Subir a SharePoint
+    upload_to_sharepoint({
         "VENTAS":     df_ventas,
         "STOCK":      df_stock,
         "FLUJO_CAJA": df_flujo_caja,

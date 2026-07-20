@@ -2,6 +2,10 @@
 *.json
 !package.json
 
+# Credenciales locales (Azure/SharePoint) - nunca subir
+.env
+.env.local
+
 # Descargas temporales de Evolta
 /etl/fc_*/
 /tmp/

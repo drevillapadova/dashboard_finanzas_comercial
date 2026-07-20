@@ -1,7 +1,7 @@
-selenium
 pandas
-gspread
-google-auth
 requests
 openpyxl
 xlsxwriter
+msal
+tenacity
+python-dotenv
