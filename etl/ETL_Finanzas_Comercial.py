@@ -148,7 +148,7 @@ def get_tipo_cambio(fecha=None):
         if f in _TC_CACHE:
             _TC_CACHE[fecha_str] = _TC_CACHE[f]
             return _TC_CACHE[f]
-        tc_raw = _fetch_tc_eapi(f) or _fetch_tc_bcrp(f)
+        tc_raw = _fetch_tc_sunat_oficial(f) or _fetch_tc_eapi(f) or _fetch_tc_bcrp(f)
         if tc_raw:
             tc = round(tc_raw, 3)
             print(f'   -> [TC] {fecha_str}: S/ {tc}')
