@@ -325,6 +325,15 @@
   tbody tr:hover td { background: var(--bg); }
   .table-empty { padding: 40px 20px; text-align: center; color: var(--muted-2); font-size: 13px; }
   #tbl-v-detalle th, #tbl-v-detalle td { text-align: center; }
+  #tbl-v-detalle th:nth-child(1), #tbl-v-detalle td:nth-child(1),
+  #tbl-v-detalle th:nth-child(2), #tbl-v-detalle td:nth-child(2) { text-align: left; }
+  #tbl-v-detalle td:nth-child(7), #tbl-v-detalle td:nth-child(8) {
+    white-space: normal;
+    word-break: break-word;
+  }
+  #tbl-v-detalle th { cursor: pointer; user-select: none; }
+  #tbl-v-detalle th:hover { color: var(--text); }
+  .sort-ind { font-size: 9px; opacity: 0.7; margin-left: 3px; }
 
   /* ── PLACEHOLDER ── */
   .placeholder {
@@ -487,18 +496,23 @@
                  style="width:100%;max-width:320px;border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;font-family:inherit;outline:none"/>
         </div>
         <div class="table-scroll">
-          <table id="tbl-v-detalle">
+          <table id="tbl-v-detalle" style="table-layout:fixed;width:100%">
+            <colgroup>
+              <col style="width:14%"><col style="width:16%"><col style="width:9%">
+              <col style="width:8%"><col style="width:9%"><col style="width:7%">
+              <col style="width:13%"><col style="width:11%"><col style="width:13%">
+            </colgroup>
             <thead>
               <tr>
-                <th>Proyecto</th>
-                <th>Cliente</th>
-                <th>Tipo</th>
-                <th>Inmueble</th>
-                <th>Precio</th>
-                <th>m²</th>
-                <th>Crédito</th>
-                <th>Entidad</th>
-                <th>Fecha de venta</th>
+                <th onclick="ordenarDetalle('proyecto')">Proyecto<span class="sort-ind" id="sort-ind-proyecto"></span></th>
+                <th onclick="ordenarDetalle('cliente')">Cliente<span class="sort-ind" id="sort-ind-cliente"></span></th>
+                <th onclick="ordenarDetalle('tipo')">Tipo<span class="sort-ind" id="sort-ind-tipo"></span></th>
+                <th onclick="ordenarDetalle('inmueble')">Inmueble<span class="sort-ind" id="sort-ind-inmueble"></span></th>
+                <th onclick="ordenarDetalle('precio')">Precio<span class="sort-ind" id="sort-ind-precio"></span></th>
+                <th onclick="ordenarDetalle('m2')">m²<span class="sort-ind" id="sort-ind-m2"></span></th>
+                <th onclick="ordenarDetalle('credito')">Crédito<span class="sort-ind" id="sort-ind-credito"></span></th>
+                <th onclick="ordenarDetalle('entidad')">Entidad<span class="sort-ind" id="sort-ind-entidad"></span></th>
+                <th onclick="ordenarDetalle('fecha')">Fecha de venta<span class="sort-ind" id="sort-ind-fecha"></span></th>
               </tr>
             </thead>
             <tbody id="tbl-v-detalle-body">
@@ -1251,6 +1265,32 @@ function renderVentas() {
 
 // ── Tabla de detalles (Ventas) ────────────────────────────────
 let VENTAS_DETALLE_ROWS = [];
+let DETALLE_SORT = { key: null, dir: 1 };
+
+const DETALLE_SORT_FIELDS = {
+  proyecto: r => (r['Proyecto'] || '').toUpperCase(),
+  cliente:  r => (r['NombresTitular'] || '').toUpperCase(),
+  tipo:     r => (r['TipoInmueble'] || '').toUpperCase(),
+  inmueble: r => (r['NroInmueble'] || '').toUpperCase(),
+  precio:   r => parseFloat(r['PrecioOriginal'] || r['PrecioVenta'] || 0) || 0,
+  m2:       r => lookupArea(r),
+  credito:  r => (r['TipoFinanciamiento'] || '').split('/')[0].trim().toUpperCase(),
+  entidad:  r => (r['EntidadFinanciamiento'] || '').toUpperCase(),
+  fecha:    r => r['FechaVenta'] || '',
+};
+
+function ordenarDetalle(key) {
+  if (DETALLE_SORT.key === key) {
+    DETALLE_SORT.dir *= -1;
+  } else {
+    DETALLE_SORT.key = key;
+    DETALLE_SORT.dir = 1;
+  }
+  document.querySelectorAll('.sort-ind').forEach(el => el.textContent = '');
+  const ind = document.getElementById('sort-ind-' + key);
+  if (ind) ind.textContent = DETALLE_SORT.dir === 1 ? '▲' : '▼';
+  aplicarBusquedaDetalle();
+}
 
 function renderDetalleVentas(datos) {
   VENTAS_DETALLE_ROWS = datos.slice().sort((a, b) => (b['FechaVenta'] || '').localeCompare(a['FechaVenta'] || ''));
@@ -1260,12 +1300,22 @@ function renderDetalleVentas(datos) {
 function aplicarBusquedaDetalle() {
   const inputEl = document.getElementById('buscar-detalle-venta');
   const q = (inputEl ? inputEl.value : '').trim().toUpperCase();
-  const filas = q
+  let filas = q
     ? VENTAS_DETALLE_ROWS.filter(r =>
         (r['NombresTitular'] || '').toUpperCase().includes(q) ||
         (r['Proyecto']       || '').toUpperCase().includes(q) ||
         (r['NroInmueble']    || '').toUpperCase().includes(q))
     : VENTAS_DETALLE_ROWS;
+
+  if (DETALLE_SORT.key) {
+    const getVal = DETALLE_SORT_FIELDS[DETALLE_SORT.key];
+    filas = filas.slice().sort((a, b) => {
+      const va = getVal(a), vb = getVal(b);
+      if (va < vb) return -1 * DETALLE_SORT.dir;
+      if (va > vb) return  1 * DETALLE_SORT.dir;
+      return 0;
+    });
+  }
 
   const tbody = document.getElementById('tbl-v-detalle-body');
   if (!tbody) return;
