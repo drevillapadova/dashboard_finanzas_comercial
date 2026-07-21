@@ -171,6 +171,32 @@
   .tab-btn:hover { color: var(--text); }
   .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
 
+  /* ── SUB-TABS (dentro de una sección) ── */
+  .subtabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  .subtab-btn {
+    padding: 8px 4px;
+    margin-right: 16px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    font-size: 12px;
+    font-family: 'Plus Jakarta Sans', inherit;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: -1px;
+  }
+  .subtab-btn:hover { color: var(--text); }
+  .subtab-btn.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+  .ventas-subsection { display: none; }
+  .ventas-subsection.active { display: block; }
+
   /* ── MAIN ── */
   .main { padding: 20px 28px 40px; }
   .section { display: none; }
@@ -404,73 +430,85 @@
   ══════════════════════════════════════════════════════ -->
   <div id="section-ventas" class="section active">
 
-    <div class="kpi-row">
-      <div class="kpi-card blue">
-        <div class="kpi-label">Unidades vendidas</div>
-        <div class="kpi-val" id="kpi-v-unidades">—</div>
-        <div class="kpi-sub">en el periodo</div>
-      </div>
-      <div class="kpi-card green" id="kpi-v-monto-card">
-        <div class="kpi-label" id="kpi-v-monto-lbl">Monto total</div>
-        <div class="kpi-val" id="kpi-v-monto">—</div>
-        <div class="kpi-sub" id="kpi-v-moneda-lbl">moneda seleccionada</div>
-      </div>
-      <div class="kpi-card green" id="kpi-v-monto-usd-card" style="display:none">
-        <div class="kpi-label">Monto Dólares</div>
-        <div class="kpi-val" id="kpi-v-monto-usd">—</div>
-        <div class="kpi-sub">USD original</div>
-      </div>
-      <div class="kpi-card orange">
-        <div class="kpi-label">Ticket promedio</div>
-        <div class="kpi-val" id="kpi-v-ticket">—</div>
-        <div class="kpi-sub">por unidad</div>
-      </div>
+    <div class="subtabs">
+      <button class="subtab-btn active" onclick="showVentasSub('resumen', this)">Resumen</button>
+      <button class="subtab-btn" onclick="showVentasSub('detalle', this)">Detalle</button>
     </div>
 
-    <div id="ventas-tipos" class="kpi-row" style="margin-top:0"></div>
+    <div id="ventas-sub-resumen" class="ventas-subsection active">
 
-    <div class="charts-grid">
-      <div class="chart-card">
-        <h3>Evolución mensual — Monto</h3>
-        <div class="chart-wrap"><canvas id="chart-v-evolucion"></canvas></div>
+      <div class="kpi-row">
+        <div class="kpi-card blue">
+          <div class="kpi-label">Unidades vendidas</div>
+          <div class="kpi-val" id="kpi-v-unidades">—</div>
+          <div class="kpi-sub">en el periodo</div>
+        </div>
+        <div class="kpi-card green" id="kpi-v-monto-card">
+          <div class="kpi-label" id="kpi-v-monto-lbl">Monto total</div>
+          <div class="kpi-val" id="kpi-v-monto">—</div>
+          <div class="kpi-sub" id="kpi-v-moneda-lbl">moneda seleccionada</div>
+        </div>
+        <div class="kpi-card green" id="kpi-v-monto-usd-card" style="display:none">
+          <div class="kpi-label">Monto Dólares</div>
+          <div class="kpi-val" id="kpi-v-monto-usd">—</div>
+          <div class="kpi-sub">USD original</div>
+        </div>
+        <div class="kpi-card orange">
+          <div class="kpi-label">Ticket promedio</div>
+          <div class="kpi-val" id="kpi-v-ticket">—</div>
+          <div class="kpi-sub">por unidad</div>
+        </div>
       </div>
-      <div class="chart-card">
-        <h3>Evolución mensual — Unidades</h3>
-        <div class="chart-wrap"><canvas id="chart-v-unidades-mes"></canvas></div>
-      </div>
-      <div class="chart-card" style="grid-column:1/-1">
-        <h3>Monto vendido por proyecto</h3>
-        <div class="chart-wrap"><canvas id="chart-v-proyecto"></canvas></div>
-      </div>
-    </div>
 
-    <div class="sub-header"><span>Detalles</span></div>
-    <div class="table-wrap">
-      <div style="padding:10px 14px;border-bottom:1px solid var(--border)">
-        <input type="text" id="buscar-detalle-venta" placeholder="Buscar por cliente, proyecto o inmueble..."
-               style="width:100%;max-width:320px;border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;font-family:inherit;outline:none"/>
+      <div id="ventas-tipos" class="kpi-row" style="margin-top:0"></div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3>Evolución mensual — Monto</h3>
+          <div class="chart-wrap"><canvas id="chart-v-evolucion"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>Evolución mensual — Unidades</h3>
+          <div class="chart-wrap"><canvas id="chart-v-unidades-mes"></canvas></div>
+        </div>
+        <div class="chart-card" style="grid-column:1/-1">
+          <h3>Monto vendido por proyecto</h3>
+          <div class="chart-wrap"><canvas id="chart-v-proyecto"></canvas></div>
+        </div>
       </div>
-      <div class="table-scroll">
-        <table id="tbl-v-detalle">
-          <thead>
-            <tr>
-              <th>Proyecto</th>
-              <th>Cliente</th>
-              <th>Tipo</th>
-              <th>Inmueble</th>
-              <th>Precio</th>
-              <th>m²</th>
-              <th>Crédito</th>
-              <th>Entidad</th>
-              <th>Fecha de venta</th>
-            </tr>
-          </thead>
-          <tbody id="tbl-v-detalle-body">
-            <tr><td colspan="9" class="table-empty">Cargando...</td></tr>
-          </tbody>
-        </table>
+
+    </div><!-- /ventas-sub-resumen -->
+
+    <div id="ventas-sub-detalle" class="ventas-subsection">
+
+      <div class="table-wrap">
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border)">
+          <input type="text" id="buscar-detalle-venta" placeholder="Buscar por cliente, proyecto o inmueble..."
+                 style="width:100%;max-width:320px;border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;font-family:inherit;outline:none"/>
+        </div>
+        <div class="table-scroll">
+          <table id="tbl-v-detalle">
+            <thead>
+              <tr>
+                <th>Proyecto</th>
+                <th>Cliente</th>
+                <th>Tipo</th>
+                <th>Inmueble</th>
+                <th>Precio</th>
+                <th>m²</th>
+                <th>Crédito</th>
+                <th>Entidad</th>
+                <th>Fecha de venta</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-v-detalle-body">
+              <tr><td colspan="9" class="table-empty">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+
+    </div><!-- /ventas-sub-detalle -->
 
   </div>
 
@@ -1537,6 +1575,13 @@ function showSection(name, btn) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('section-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+function showVentasSub(name, btn) {
+  document.querySelectorAll('#section-ventas .subtab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#section-ventas .ventas-subsection').forEach(s => s.classList.remove('active'));
+  document.getElementById('ventas-sub-' + name).classList.add('active');
   btn.classList.add('active');
 }
 
