@@ -298,6 +298,7 @@
   tbody tr:last-child td { border-bottom: none; }
   tbody tr:hover td { background: var(--bg); }
   .table-empty { padding: 40px 20px; text-align: center; color: var(--muted-2); font-size: 13px; }
+  #tbl-v-detalle th, #tbl-v-detalle td { text-align: center; }
 
   /* ── PLACEHOLDER ── */
   .placeholder {
@@ -440,6 +441,34 @@
       <div class="chart-card" style="grid-column:1/-1">
         <h3>Monto vendido por proyecto</h3>
         <div class="chart-wrap"><canvas id="chart-v-proyecto"></canvas></div>
+      </div>
+    </div>
+
+    <div class="sub-header"><span>Detalles</span></div>
+    <div class="table-wrap">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border)">
+        <input type="text" id="buscar-detalle-venta" placeholder="Buscar por cliente, proyecto o inmueble..."
+               style="width:100%;max-width:320px;border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;font-family:inherit;outline:none"/>
+      </div>
+      <div class="table-scroll">
+        <table id="tbl-v-detalle">
+          <thead>
+            <tr>
+              <th>Proyecto</th>
+              <th>Cliente</th>
+              <th>Tipo</th>
+              <th>Inmueble</th>
+              <th>Precio</th>
+              <th>m²</th>
+              <th>Crédito</th>
+              <th>Entidad</th>
+              <th>Fecha de venta</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-v-detalle-body">
+            <tr><td colspan="9" class="table-empty">Cargando...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -647,6 +676,7 @@ async function loadData() {
     DATA.ing_deposito = csvToObjects(json.ing_deposito || []);
     document.getElementById('ultima-actualizacion').textContent =
       'Actualizado: ' + (json.ultima_actualizacion || '—');
+    buildAreaMap();
     poblarFiltroProyecto();
     poblarFiltroTipo();
     renderAll();
@@ -681,6 +711,49 @@ function fmt(val, moneda) {
 
 function getMonedaLabel() {
   return MONEDA === 'dolares' ? 'USD' : MONEDA === 'soles' ? 'Soles SUNAT' : 'Moneda original';
+}
+
+function fmtFechaCorta(f) {
+  if (!f) return '—';
+  const [y, m, d] = f.substring(0, 10).split('-');
+  return (y && m && d) ? `${d}/${m}/${y}` : f;
+}
+
+// Nombre propio en formato oración: solo la primera letra en mayúscula
+function toOracion(s) {
+  if (!s) return '—';
+  const t = s.trim().toLowerCase();
+  return t ? (t.charAt(0).toUpperCase() + t.slice(1)) : '—';
+}
+
+// Precio en la moneda original de la venta (sin conversión)
+function precioNativo(r) {
+  const m = (r['TipoMoneda'] || '').toUpperCase();
+  const esUSD = m.includes('DOLAR') || m.includes('USD');
+  const orig  = parseFloat(r['PrecioOriginal'] || r['PrecioVenta'] || 0) || 0;
+  return fmt(orig, esUSD ? 'dolares' : 'soles');
+}
+
+// ── Mapa de m² por inmueble (cruce VENTAS ↔ STOCK) ───────────
+let AREA_MAP = {};
+function buildAreaMap() {
+  AREA_MAP = {};
+  DATA.stock.forEach(r => {
+    const proy = (r['Proyecto'] || '').trim().toUpperCase();
+    const area = parseFloat(r['AreaVenta']) || parseFloat(r['Areatechada']) || parseFloat(r['AreaConstruida']) || 0;
+    if (!proy || !area) return;
+    [r['NroInmuebleActual'], r['NroInmuebleOriginal']].forEach(nro => {
+      const n = (nro || '').trim().toUpperCase();
+      if (!n) return;
+      const key = proy + '|' + n;
+      if (!(key in AREA_MAP)) AREA_MAP[key] = area;
+    });
+  });
+}
+function lookupArea(row) {
+  const proy = (row['Proyecto']    || '').trim().toUpperCase();
+  const nro  = (row['NroInmueble'] || '').trim().toUpperCase();
+  return AREA_MAP[proy + '|' + nro] || 0;
 }
 
 
@@ -1118,6 +1191,9 @@ function renderVentas() {
     options: CHART_OPTS_BAR
   });
 
+  // Tabla de detalles
+  renderDetalleVentas(datos);
+
   // Chart: distribución stock por estado
   const estadosStock = agruparPorKey(stockFiltrado, 'Estado', () => 1);
   upsertChart('chart-st-estado', {
@@ -1133,6 +1209,48 @@ function renderVentas() {
     }
   });
 
+}
+
+// ── Tabla de detalles (Ventas) ────────────────────────────────
+let VENTAS_DETALLE_ROWS = [];
+
+function renderDetalleVentas(datos) {
+  VENTAS_DETALLE_ROWS = datos.slice().sort((a, b) => (b['FechaVenta'] || '').localeCompare(a['FechaVenta'] || ''));
+  aplicarBusquedaDetalle();
+}
+
+function aplicarBusquedaDetalle() {
+  const inputEl = document.getElementById('buscar-detalle-venta');
+  const q = (inputEl ? inputEl.value : '').trim().toUpperCase();
+  const filas = q
+    ? VENTAS_DETALLE_ROWS.filter(r =>
+        (r['NombresTitular'] || '').toUpperCase().includes(q) ||
+        (r['Proyecto']       || '').toUpperCase().includes(q) ||
+        (r['NroInmueble']    || '').toUpperCase().includes(q))
+    : VENTAS_DETALLE_ROWS;
+
+  const tbody = document.getElementById('tbl-v-detalle-body');
+  if (!tbody) return;
+  if (!filas.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="table-empty">Sin datos para mostrar</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filas.map(r => {
+    const area = lookupArea(r);
+    const credito = (r['TipoFinanciamiento']    || '').split('/')[0].trim() || '—';
+    const entidad = (r['EntidadFinanciamiento'] || '').trim() || '—';
+    return `<tr>
+      <td>${r['Proyecto'] || '—'}</td>
+      <td>${toOracion(r['NombresTitular'])}</td>
+      <td>${_normLabel(r['TipoInmueble'] || '') || '—'}</td>
+      <td>${r['NroInmueble'] || '—'}</td>
+      <td>${precioNativo(r)}</td>
+      <td>${area ? area.toLocaleString('es-PE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' m²' : '—'}</td>
+      <td>${credito}</td>
+      <td>${entidad}</td>
+      <td>${fmtFechaCorta(r['FechaVenta'])}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ── Render Proyección & Cobranza ─────────────────────────────
@@ -1439,6 +1557,7 @@ document.getElementById('filtro-proyecto').addEventListener('change', renderAll)
 document.getElementById('filtro-tipo').addEventListener('change', renderAll);
 document.getElementById('filtro-desde').addEventListener('change', renderAll);
 document.getElementById('filtro-hasta').addEventListener('change', renderAll);
+document.getElementById('buscar-detalle-venta').addEventListener('input', aplicarBusquedaDetalle);
 
 const hoy = new Date();
 document.getElementById('filtro-desde').value = '2023-01-01';
