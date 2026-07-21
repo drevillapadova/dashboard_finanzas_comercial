@@ -1,49 +1,71 @@
-import io, threading, requests
+import os, threading, tempfile, shutil
+from pathlib import Path
 from datetime import datetime
 from flask import Flask, jsonify, render_template
 from apscheduler.schedulers.background import BackgroundScheduler
 import pandas as pd
 import pytz
+from sharepoint_client import SharePointClient
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 app  = Flask(__name__)
 LIMA = pytz.timezone("America/Lima")
 
-SHEET_ID = "18uWdlUjIf1v9n4RSuEw3AK-LBseTtD78jNZtLTanF2U"
-TABS     = ["VENTAS", "STOCK", "FLUJO_CAJA"]
+SHAREPOINT_DASHBOARD_FOLDER = os.environ.get(
+    "SHAREPOINT_DASHBOARD_FOLDER",
+    "FINANZAS/TI/AUTOMATIZACIONES/DASHBOARD_FINANZAS_COMERCIAL",
+)
+SHAREPOINT_DASHBOARD_FILENAME = os.environ.get(
+    "SHAREPOINT_DASHBOARD_FILENAME", "Dashboard_Finanzas_Comercial.xlsx"
+)
+TABS = ["VENTAS", "STOCK", "FLUJO_CAJA"]
 
 _cache = {t: [] for t in TABS}
 _cache["updated_at"] = None
 
 
-# ── Lectura de Sheets ─────────────────────────────────────────
+# ── Lectura desde SharePoint ──────────────────────────────────
 
-def csv_url(tab_name):
-    from time import time
-    return (f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
-            f"/gviz/tq?tqx=out:csv&sheet={tab_name}&ts={int(time())}")
-
-
-def leer_tab(tab_name):
+def leer_excel_sharepoint():
+    """Descarga el Excel del dashboard desde SharePoint y devuelve un dict
+    {tab_name: rows} en el mismo formato que antes (filas + encabezado)."""
+    tmp_dir = tempfile.mkdtemp(prefix="dashboard_fc_read_")
     try:
-        resp = requests.get(csv_url(tab_name), timeout=30)
-        resp.raise_for_status()
-        resp.encoding = "utf-8"
-        df = pd.read_csv(io.StringIO(resp.text), low_memory=False)
-        rows = [df.columns.tolist()] + df.fillna("").astype(str).values.tolist()
-        print(f"   -> {tab_name}: {len(rows)-1:,} filas")
-        return rows
+        client = SharePointClient()
+        remote_path = f"{SHAREPOINT_DASHBOARD_FOLDER}/{SHAREPOINT_DASHBOARD_FILENAME}"
+        local_path = client.download_to(remote_path, Path(tmp_dir) / SHAREPOINT_DASHBOARD_FILENAME)
+
+        resultado = {}
+        for tab_name in TABS:
+            try:
+                df = pd.read_excel(local_path, sheet_name=tab_name)
+                rows = [df.columns.tolist()] + df.fillna("").astype(str).values.tolist()
+                print(f"   -> {tab_name}: {len(rows)-1:,} filas")
+                resultado[tab_name] = rows
+            except Exception as e:
+                print(f"   !! Error leyendo hoja {tab_name}: {e}")
+                resultado[tab_name] = []
+        return resultado
     except Exception as e:
-        print(f"   !! Error leyendo {tab_name}: {e}")
-        return []
+        print(f"   !! Error descargando de SharePoint: {e}")
+        return {t: [] for t in TABS}
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ── Cache ─────────────────────────────────────────────────────
 
 def actualizar_cache():
     ts = datetime.now(LIMA).strftime("%H:%M:%S")
-    print(f"\n[{ts}] Actualizando cache desde Google Sheets...")
+    print(f"\n[{ts}] Actualizando cache desde SharePoint...")
+    datos = leer_excel_sharepoint()
     for tab in TABS:
-        _cache[tab] = leer_tab(tab)
+        _cache[tab] = datos[tab]
     _cache["updated_at"] = datetime.now(LIMA).strftime("%d/%m/%Y %H:%M")
     print(f"   -> Cache OK · {_cache['updated_at']}")
 

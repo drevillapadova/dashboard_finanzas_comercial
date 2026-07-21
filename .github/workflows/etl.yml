@@ -26,16 +26,18 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Verificar Google Chrome
-        run: google-chrome --version
-
       - name: Instalar dependencias Python
         run: pip install -r etl/requirements.txt
 
       - name: Ejecutar ETL
         env:
-          EVOLTA_USER:             ${{ secrets.EVOLTA_USER }}
-          EVOLTA_PASS:             ${{ secrets.EVOLTA_PASS }}
-          GSHEETS_CREDENTIALS_B64: ${{ secrets.GSHEETS_CREDENTIALS_B64 }}
-          GSHEETS_SPREADSHEET_ID:  ${{ secrets.GSHEETS_SPREADSHEET_ID }}
+          EVOLTA_USER:          ${{ secrets.EVOLTA_USER }}
+          EVOLTA_PASS:          ${{ secrets.EVOLTA_PASS }}
+          AZURE_TENANT_ID:      ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID:      ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET:  ${{ secrets.AZURE_CLIENT_SECRET }}
+          SHAREPOINT_HOSTNAME:  ${{ secrets.SHAREPOINT_HOSTNAME }}
+          SHAREPOINT_SITE_PATH: ${{ secrets.SHAREPOINT_SITE_PATH }}
+          SHAREPOINT_DRIVE_NAME: ${{ secrets.SHAREPOINT_DRIVE_NAME }}
+          SHAREPOINT_DASHBOARD_FOLDER: ${{ secrets.SHAREPOINT_DASHBOARD_FOLDER }}
         run: python etl/ETL_Finanzas_Comercial.py
