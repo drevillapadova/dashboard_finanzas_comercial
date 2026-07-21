@@ -194,8 +194,8 @@
   }
   .subtab-btn:hover { color: var(--text); }
   .subtab-btn.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
-  .ventas-subsection { display: none; }
-  .ventas-subsection.active { display: block; }
+  .subsection { display: none; }
+  .subsection.active { display: block; }
 
   /* ── MAIN ── */
   .main { padding: 20px 28px 40px; }
@@ -324,15 +324,15 @@
   tbody tr:last-child td { border-bottom: none; }
   tbody tr:hover td { background: var(--bg); }
   .table-empty { padding: 40px 20px; text-align: center; color: var(--muted-2); font-size: 13px; }
-  #tbl-v-detalle th, #tbl-v-detalle td { text-align: center; }
-  #tbl-v-detalle th:nth-child(1), #tbl-v-detalle td:nth-child(1),
-  #tbl-v-detalle th:nth-child(2), #tbl-v-detalle td:nth-child(2) { text-align: left; }
-  #tbl-v-detalle td:nth-child(7), #tbl-v-detalle td:nth-child(8) {
+  .tbl-detalle th, .tbl-detalle td { text-align: center; }
+  .tbl-detalle th:nth-child(1), .tbl-detalle td:nth-child(1),
+  .tbl-detalle th:nth-child(2), .tbl-detalle td:nth-child(2) { text-align: left; }
+  .tbl-detalle td:nth-child(7), .tbl-detalle td:nth-child(8) {
     white-space: normal;
     word-break: break-word;
   }
-  #tbl-v-detalle th { cursor: pointer; user-select: none; }
-  #tbl-v-detalle th:hover { color: var(--text); }
+  .tbl-detalle th { cursor: pointer; user-select: none; }
+  .tbl-detalle th:hover { color: var(--text); }
   .sort-ind { font-size: 9px; opacity: 0.7; margin-left: 3px; }
 
   /* ── PLACEHOLDER ── */
@@ -440,11 +440,11 @@
   <div id="section-ventas" class="section active">
 
     <div class="subtabs">
-      <button class="subtab-btn active" onclick="showVentasSub('resumen', this)">Resumen</button>
-      <button class="subtab-btn" onclick="showVentasSub('detalle', this)">Detalle</button>
+      <button class="subtab-btn active" onclick="showSubsection(this,'ventas-sub-resumen')">Resumen</button>
+      <button class="subtab-btn" onclick="showSubsection(this,'ventas-sub-detalle')">Detalle</button>
     </div>
 
-    <div id="ventas-sub-resumen" class="ventas-subsection active">
+    <div id="ventas-sub-resumen" class="subsection active">
 
       <div class="kpi-row">
         <div class="kpi-card blue">
@@ -488,7 +488,7 @@
 
     </div><!-- /ventas-sub-resumen -->
 
-    <div id="ventas-sub-detalle" class="ventas-subsection">
+    <div id="ventas-sub-detalle" class="subsection">
 
       <div class="table-wrap">
         <div style="padding:10px 14px;border-bottom:1px solid var(--border)">
@@ -496,7 +496,7 @@
                  style="width:100%;max-width:320px;border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;font-family:inherit;outline:none"/>
         </div>
         <div class="table-scroll">
-          <table id="tbl-v-detalle" style="table-layout:fixed;width:100%">
+          <table id="tbl-v-detalle" class="tbl-detalle" style="table-layout:fixed;width:100%">
             <colgroup>
               <col style="width:14%"><col style="width:16%"><col style="width:9%">
               <col style="width:8%"><col style="width:9%"><col style="width:7%">
@@ -531,29 +531,74 @@
   ══════════════════════════════════════════════════════ -->
   <div id="section-separaciones" class="section">
 
-    <div class="kpi-row">
-      <div class="kpi-card blue">
-        <div class="kpi-label">Unidades separadas</div>
-        <div class="kpi-val" id="kpi-sep-unidades">—</div>
-        <div class="kpi-sub">en separación</div>
-      </div>
-      <div class="kpi-card orange" id="kpi-sep-monto-card">
-        <div class="kpi-label" id="kpi-sep-monto-lbl">Monto S/</div>
-        <div class="kpi-val" id="kpi-sep-monto-s">—</div>
-        <div class="kpi-sub" id="kpi-sep-moneda-lbl">PEN original</div>
-      </div>
-      <div class="kpi-card orange" id="kpi-sep-monto-usd-card">
-        <div class="kpi-label">Monto $</div>
-        <div class="kpi-val" id="kpi-sep-monto-d">—</div>
-        <div class="kpi-sub">USD original</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Ticket promedio</div>
-        <div class="kpi-val" id="kpi-sep-ticket">—</div>
-        <div class="kpi-sub">por unidad</div>
-      </div>
+    <div class="subtabs">
+      <button class="subtab-btn active" onclick="showSubsection(this,'sep-sub-resumen')">Resumen</button>
+      <button class="subtab-btn" onclick="showSubsection(this,'sep-sub-detalle')">Detalle</button>
     </div>
-    <div id="sep-tipos" class="kpi-row" style="margin-top:0"></div>
+
+    <div id="sep-sub-resumen" class="subsection active">
+
+      <div class="kpi-row">
+        <div class="kpi-card blue">
+          <div class="kpi-label">Unidades separadas</div>
+          <div class="kpi-val" id="kpi-sep-unidades">—</div>
+          <div class="kpi-sub">en separación</div>
+        </div>
+        <div class="kpi-card orange" id="kpi-sep-monto-card">
+          <div class="kpi-label" id="kpi-sep-monto-lbl">Monto S/</div>
+          <div class="kpi-val" id="kpi-sep-monto-s">—</div>
+          <div class="kpi-sub" id="kpi-sep-moneda-lbl">PEN original</div>
+        </div>
+        <div class="kpi-card orange" id="kpi-sep-monto-usd-card">
+          <div class="kpi-label">Monto $</div>
+          <div class="kpi-val" id="kpi-sep-monto-d">—</div>
+          <div class="kpi-sub">USD original</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Ticket promedio</div>
+          <div class="kpi-val" id="kpi-sep-ticket">—</div>
+          <div class="kpi-sub">por unidad</div>
+        </div>
+      </div>
+      <div id="sep-tipos" class="kpi-row" style="margin-top:0"></div>
+
+    </div><!-- /sep-sub-resumen -->
+
+    <div id="sep-sub-detalle" class="subsection">
+
+      <div class="table-wrap">
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border)">
+          <input type="text" id="buscar-detalle-sep" placeholder="Buscar por cliente, proyecto o inmueble..."
+                 style="width:100%;max-width:320px;border:1px solid var(--border-2);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;font-family:inherit;outline:none"/>
+        </div>
+        <div class="table-scroll">
+          <table id="tbl-sep-detalle" class="tbl-detalle" style="table-layout:fixed;width:100%">
+            <colgroup>
+              <col style="width:14%"><col style="width:16%"><col style="width:9%">
+              <col style="width:8%"><col style="width:9%"><col style="width:7%">
+              <col style="width:13%"><col style="width:11%"><col style="width:13%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th onclick="ordenarDetalleSep('proyecto')">Proyecto<span class="sort-ind" id="sort-ind-sep-proyecto"></span></th>
+                <th onclick="ordenarDetalleSep('cliente')">Cliente<span class="sort-ind" id="sort-ind-sep-cliente"></span></th>
+                <th onclick="ordenarDetalleSep('tipo')">Tipo<span class="sort-ind" id="sort-ind-sep-tipo"></span></th>
+                <th onclick="ordenarDetalleSep('inmueble')">Inmueble<span class="sort-ind" id="sort-ind-sep-inmueble"></span></th>
+                <th onclick="ordenarDetalleSep('precio')">Precio<span class="sort-ind" id="sort-ind-sep-precio"></span></th>
+                <th onclick="ordenarDetalleSep('m2')">m²<span class="sort-ind" id="sort-ind-sep-m2"></span></th>
+                <th onclick="ordenarDetalleSep('credito')">Crédito<span class="sort-ind" id="sort-ind-sep-credito"></span></th>
+                <th onclick="ordenarDetalleSep('entidad')">Entidad<span class="sort-ind" id="sort-ind-sep-entidad"></span></th>
+                <th onclick="ordenarDetalleSep('fecha')">Fecha de separación<span class="sort-ind" id="sort-ind-sep-fecha"></span></th>
+              </tr>
+            </thead>
+            <tbody id="tbl-sep-detalle-body">
+              <tr><td colspan="9" class="table-empty">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /sep-sub-detalle -->
 
   </div>
 
@@ -562,51 +607,63 @@
   ══════════════════════════════════════════════════════ -->
   <div id="section-stock" class="section">
 
-    <div class="kpi-row">
-      <div class="kpi-card">
-        <div class="kpi-label">Total stock</div>
-        <div class="kpi-val" id="kpi-st-total">—</div>
-        <div class="kpi-sub">unidades en cartera</div>
-      </div>
-      <div class="kpi-card green">
-        <div class="kpi-label">Disponibles</div>
-        <div class="kpi-val" id="kpi-st-disponible">—</div>
-        <div class="kpi-sub">para la venta</div>
-      </div>
+    <div class="subtabs">
+      <button class="subtab-btn active" onclick="showSubsection(this,'stock-sub-stock')">Stock</button>
+      <button class="subtab-btn" onclick="showSubsection(this,'stock-sub-bloqueados')">Bloqueados</button>
     </div>
-    <div id="stock-tipos" class="kpi-row" style="margin-top:0"></div>
 
-    <div class="sub-header"><span>Bloqueados</span></div>
-    <div class="kpi-row">
-      <div class="kpi-card blue">
-        <div class="kpi-label">Unidades bloqueadas</div>
-        <div class="kpi-val" id="kpi-blq-unidades">—</div>
-        <div class="kpi-sub">bloqueadas actualmente</div>
-      </div>
-      <div class="kpi-card purple" id="kpi-blq-monto-card">
-        <div class="kpi-label" id="kpi-blq-monto-lbl">Monto S/</div>
-        <div class="kpi-val" id="kpi-blq-monto-s">—</div>
-        <div class="kpi-sub" id="kpi-blq-moneda-lbl">PEN original</div>
-      </div>
-      <div class="kpi-card purple" id="kpi-blq-monto-usd-card">
-        <div class="kpi-label">Monto $</div>
-        <div class="kpi-val" id="kpi-blq-monto-d">—</div>
-        <div class="kpi-sub">USD original</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Ticket promedio</div>
-        <div class="kpi-val" id="kpi-blq-ticket">—</div>
-        <div class="kpi-sub">por unidad</div>
-      </div>
-    </div>
-    <div id="blq-tipos" class="kpi-row" style="margin-top:0"></div>
+    <div id="stock-sub-stock" class="subsection active">
 
-    <div class="charts-grid">
-      <div class="chart-card" style="grid-column:1/-1">
-        <h3>Distribución de stock</h3>
-        <div class="chart-wrap"><canvas id="chart-st-estado"></canvas></div>
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-label">Total stock</div>
+          <div class="kpi-val" id="kpi-st-total">—</div>
+          <div class="kpi-sub">unidades en cartera</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Disponibles</div>
+          <div class="kpi-val" id="kpi-st-disponible">—</div>
+          <div class="kpi-sub">para la venta</div>
+        </div>
       </div>
-    </div>
+      <div id="stock-tipos" class="kpi-row" style="margin-top:0"></div>
+
+      <div class="charts-grid">
+        <div class="chart-card" style="grid-column:1/-1">
+          <h3>Distribución de stock</h3>
+          <div class="chart-wrap"><canvas id="chart-st-estado"></canvas></div>
+        </div>
+      </div>
+
+    </div><!-- /stock-sub-stock -->
+
+    <div id="stock-sub-bloqueados" class="subsection">
+
+      <div class="kpi-row">
+        <div class="kpi-card blue">
+          <div class="kpi-label">Unidades bloqueadas</div>
+          <div class="kpi-val" id="kpi-blq-unidades">—</div>
+          <div class="kpi-sub">bloqueadas actualmente</div>
+        </div>
+        <div class="kpi-card purple" id="kpi-blq-monto-card">
+          <div class="kpi-label" id="kpi-blq-monto-lbl">Monto S/</div>
+          <div class="kpi-val" id="kpi-blq-monto-s">—</div>
+          <div class="kpi-sub" id="kpi-blq-moneda-lbl">PEN original</div>
+        </div>
+        <div class="kpi-card purple" id="kpi-blq-monto-usd-card">
+          <div class="kpi-label">Monto $</div>
+          <div class="kpi-val" id="kpi-blq-monto-d">—</div>
+          <div class="kpi-sub">USD original</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Ticket promedio</div>
+          <div class="kpi-val" id="kpi-blq-ticket">—</div>
+          <div class="kpi-sub">por unidad</div>
+        </div>
+      </div>
+      <div id="blq-tipos" class="kpi-row" style="margin-top:0"></div>
+
+    </div><!-- /stock-sub-bloqueados -->
 
   </div>
 
@@ -786,13 +843,26 @@ function precioNativo(r) {
   return fmt(orig, esUSD ? 'dolares' : 'soles');
 }
 
+// Igual que precioNativo() pero para filas de STOCK (columna de moneda distinta: 'Moneda')
+function precioNativoStock(r) {
+  const m = (r['Moneda'] || '').toUpperCase();
+  const esUSD = m.includes('DOLAR') || m.includes('USD');
+  const orig  = parseFloat(r['PrecioOriginal'] || r['PrecioVenta'] || 0) || 0;
+  return fmt(orig, esUSD ? 'dolares' : 'soles');
+}
+
+// m² de una fila de STOCK (ya viene en la propia fila, sin necesidad de cruce)
+function areaDeFilaStock(r) {
+  return parseFloat(r['AreaVenta']) || parseFloat(r['Areatechada']) || parseFloat(r['AreaConstruida']) || 0;
+}
+
 // ── Mapa de m² por inmueble (cruce VENTAS ↔ STOCK) ───────────
 let AREA_MAP = {};
 function buildAreaMap() {
   AREA_MAP = {};
   DATA.stock.forEach(r => {
     const proy = (r['Proyecto'] || '').trim().toUpperCase();
-    const area = parseFloat(r['AreaVenta']) || parseFloat(r['Areatechada']) || parseFloat(r['AreaConstruida']) || 0;
+    const area = areaDeFilaStock(r);
     if (!proy || !area) return;
     [r['NroInmuebleActual'], r['NroInmuebleOriginal']].forEach(nro => {
       const n = (nro || '').trim().toUpperCase();
@@ -879,7 +949,8 @@ function _tipoGrupo(t) {
   const u = (t || '').toUpperCase().trim();
   if (u.includes('DEPART')) return 'Departamento';
   if (u.includes('ESTAC') && !u.includes('BICICLET')) return 'Estacionamiento';
-  if (u.includes('AZOTEA') || (u.includes('DEPÓSITO') || u.includes('DEPOSITO') || (u.includes('DEP') && !u.includes('DEPART')))) return 'Azotea/Depósito';
+  if (u.includes('AZOTEA')) return 'Azotea';
+  if (u.includes('DEPÓSITO') || u.includes('DEPOSITO') || (u.includes('DEP') && !u.includes('DEPART'))) return 'Depósito';
   return null;
 }
 
@@ -1071,25 +1142,28 @@ function renderVentas() {
   }
 
   // Stock KPIs — excluir DEVUELTA del total, disponible = solo DISPONIBLE
-  const stockFiltrado = filtrarPorProyecto(DATA.stock);
-  const stockActivo   = stockFiltrado.filter(r =>
+  // "SinTipo" = solo proyecto (usado para el desglose por tipo, que siempre muestra todos los tipos)
+  // "stockActivo"/"stockProy" = ademas filtrado por el selector de Tipo (usado en los totales/monto)
+  const stockFiltrado      = filtrarPorProyecto(DATA.stock);
+  const stockActivoSinTipo = stockFiltrado.filter(r =>
     !(r['Estado'] || '').toLowerCase().trim().includes('devuelt')
   );
-  const totalStock  = stockActivo.length;
-  const disponibles = stockActivo.filter(r =>
+  const stockActivo  = filtrarPorTipo(stockActivoSinTipo);
+  const totalStock   = stockActivo.length;
+  const disponibles  = stockActivo.filter(r =>
     (r['Estado'] || '').toLowerCase().trim().includes('disponib')
   ).length;
 
   document.getElementById('kpi-st-total').textContent      = totalStock.toLocaleString('es-PE');
   document.getElementById('kpi-st-disponible').textContent = disponibles.toLocaleString('es-PE');
 
-  // Stock por tipo (Depa, Estac., Azotea, Depósito, etc.)
-  const tipoColSt = _getTipoCol(stockActivo[0]);
+  // Stock por tipo (Depa, Estac., Azotea, Depósito, etc.) — desglose completo, no se filtra por Tipo
+  const tipoColSt = _getTipoCol(stockActivoSinTipo[0]);
   const tiposCont = document.getElementById('stock-tipos');
   if (tiposCont) {
-    if (tipoColSt && stockActivo.length) {
+    if (tipoColSt && stockActivoSinTipo.length) {
       const tipoMap = {};
-      stockActivo.forEach(r => {
+      stockActivoSinTipo.forEach(r => {
         const t = (r[tipoColSt] || '').trim() || 'Sin tipo';
         if (!tipoMap[t]) tipoMap[t] = { total: 0, disp: 0 };
         tipoMap[t].total++;
@@ -1109,16 +1183,17 @@ function renderVentas() {
   }
 
   // Separaciones (STOCK, Estado = SEPARACIÓN)
-  const stockProy = filtrarPorProyecto(DATA.stock);
+  const stockProySinTipo = filtrarPorProyecto(DATA.stock);
+  const stockProy        = filtrarPorTipo(stockProySinTipo);
   function _renderTipoCards(estadoMatch, colorClass, subLabel) {
-    const filtrado = stockProy.filter(r => (r['Estado'] || '').trim().toUpperCase() === estadoMatch);
+    const filtrado = stockProySinTipo.filter(r => (r['Estado'] || '').trim().toUpperCase() === estadoMatch);
     const mapa = {};
     filtrado.forEach(r => {
       const g = _tipoGrupo(r['TipoInmueble'] || '');
       if (!g) return;
       mapa[g] = (mapa[g] || 0) + 1;
     });
-    const orden = ['Departamento', 'Estacionamiento', 'Azotea/Depósito'];
+    const orden = ['Departamento', 'Estacionamiento', 'Azotea', 'Depósito'];
     return orden.filter(k => mapa[k]).map(k => `
         <div class="kpi-card ${colorClass}">
           <div class="kpi-label">${k}</div>
@@ -1129,6 +1204,7 @@ function renderVentas() {
 
   // KPI cards de separaciones
   const sepRows = stockProy.filter(r => (r['Estado'] || '').trim().toUpperCase() === 'SEPARACIÓN');
+  renderDetalleSeparaciones(sepRows);
   const sepTotalN = sepRows.length;
   const sepMontoS = sepRows.filter(r => !(r['Moneda'] || '').toUpperCase().includes('DOLAR'))
                            .reduce((s, r) => s + (parseFloat(r['PrecioSoles'])   || 0), 0);
@@ -1247,7 +1323,7 @@ function renderVentas() {
   renderDetalleVentas(datos);
 
   // Chart: distribución stock por estado
-  const estadosStock = agruparPorKey(stockFiltrado, 'Estado', () => 1);
+  const estadosStock = agruparPorKey(filtrarPorTipo(stockFiltrado), 'Estado', () => 1);
   upsertChart('chart-st-estado', {
     type: 'doughnut',
     data: { labels: Object.keys(estadosStock), datasets: [{
@@ -1337,6 +1413,87 @@ function aplicarBusquedaDetalle() {
       <td>${credito}</td>
       <td>${entidad}</td>
       <td>${fmtFechaCorta(r['FechaVenta'])}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Tabla de detalles (Separaciones) ──────────────────────────
+let SEP_DETALLE_ROWS = [];
+let DETALLE_SORT_SEP = { key: null, dir: 1 };
+
+function _sepInmueble(r) { return (r['NroInmuebleActual'] || r['NroInmuebleOriginal'] || '').trim(); }
+function _sepFecha(r)    { return (r['FechaSepDefinitiva'] || r['FechaSepTemporal'] || '').trim(); }
+
+const DETALLE_SORT_FIELDS_SEP = {
+  proyecto: r => (r['Proyecto'] || '').toUpperCase(),
+  cliente:  r => (r['Nombres']  || '').toUpperCase(),
+  tipo:     r => (r['TipoInmueble'] || '').toUpperCase(),
+  inmueble: r => _sepInmueble(r).toUpperCase(),
+  precio:   r => parseFloat(r['PrecioOriginal'] || r['PrecioVenta'] || 0) || 0,
+  m2:       r => areaDeFilaStock(r),
+  credito:  r => (r['TipoFinanciamiento'] || '').split('/')[0].trim().toUpperCase(),
+  entidad:  r => (r['EntidadFinanciera'] || '').toUpperCase(),
+  fecha:    r => _sepFecha(r),
+};
+
+function ordenarDetalleSep(key) {
+  if (DETALLE_SORT_SEP.key === key) {
+    DETALLE_SORT_SEP.dir *= -1;
+  } else {
+    DETALLE_SORT_SEP.key = key;
+    DETALLE_SORT_SEP.dir = 1;
+  }
+  document.querySelectorAll('#sep-sub-detalle .sort-ind').forEach(el => el.textContent = '');
+  const ind = document.getElementById('sort-ind-sep-' + key);
+  if (ind) ind.textContent = DETALLE_SORT_SEP.dir === 1 ? '▲' : '▼';
+  aplicarBusquedaDetalleSep();
+}
+
+function renderDetalleSeparaciones(rows) {
+  SEP_DETALLE_ROWS = rows.slice().sort((a, b) => _sepFecha(b).localeCompare(_sepFecha(a)));
+  aplicarBusquedaDetalleSep();
+}
+
+function aplicarBusquedaDetalleSep() {
+  const inputEl = document.getElementById('buscar-detalle-sep');
+  const q = (inputEl ? inputEl.value : '').trim().toUpperCase();
+  let filas = q
+    ? SEP_DETALLE_ROWS.filter(r =>
+        (r['Nombres']  || '').toUpperCase().includes(q) ||
+        (r['Proyecto'] || '').toUpperCase().includes(q) ||
+        _sepInmueble(r).toUpperCase().includes(q))
+    : SEP_DETALLE_ROWS;
+
+  if (DETALLE_SORT_SEP.key) {
+    const getVal = DETALLE_SORT_FIELDS_SEP[DETALLE_SORT_SEP.key];
+    filas = filas.slice().sort((a, b) => {
+      const va = getVal(a), vb = getVal(b);
+      if (va < vb) return -1 * DETALLE_SORT_SEP.dir;
+      if (va > vb) return  1 * DETALLE_SORT_SEP.dir;
+      return 0;
+    });
+  }
+
+  const tbody = document.getElementById('tbl-sep-detalle-body');
+  if (!tbody) return;
+  if (!filas.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="table-empty">Sin datos para mostrar</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filas.map(r => {
+    const area    = areaDeFilaStock(r);
+    const credito = (r['TipoFinanciamiento'] || '').split('/')[0].trim() || '—';
+    const entidad = (r['EntidadFinanciera']  || '').trim() || '—';
+    return `<tr>
+      <td>${r['Proyecto'] || '—'}</td>
+      <td>${toOracion(r['Nombres'])}</td>
+      <td>${_normLabel(r['TipoInmueble'] || '') || '—'}</td>
+      <td>${_sepInmueble(r) || '—'}</td>
+      <td>${precioNativoStock(r)}</td>
+      <td>${area ? area.toLocaleString('es-PE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' m²' : '—'}</td>
+      <td>${credito}</td>
+      <td>${entidad}</td>
+      <td>${fmtFechaCorta(_sepFecha(r))}</td>
     </tr>`;
   }).join('');
 }
@@ -1628,10 +1785,11 @@ function showSection(name, btn) {
   btn.classList.add('active');
 }
 
-function showVentasSub(name, btn) {
-  document.querySelectorAll('#section-ventas .subtab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('#section-ventas .ventas-subsection').forEach(s => s.classList.remove('active'));
-  document.getElementById('ventas-sub-' + name).classList.add('active');
+function showSubsection(btn, targetId) {
+  const scope = btn.closest('.section');
+  scope.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
+  scope.querySelectorAll('.subsection').forEach(s => s.classList.remove('active'));
+  document.getElementById(targetId).classList.add('active');
   btn.classList.add('active');
 }
 
@@ -1653,6 +1811,7 @@ document.getElementById('filtro-tipo').addEventListener('change', renderAll);
 document.getElementById('filtro-desde').addEventListener('change', renderAll);
 document.getElementById('filtro-hasta').addEventListener('change', renderAll);
 document.getElementById('buscar-detalle-venta').addEventListener('input', aplicarBusquedaDetalle);
+document.getElementById('buscar-detalle-sep').addEventListener('input', aplicarBusquedaDetalleSep);
 
 const hoy = new Date();
 document.getElementById('filtro-desde').value = '2023-01-01';
